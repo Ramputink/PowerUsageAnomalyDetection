@@ -1,6 +1,7 @@
 .DS_Store
 UCIrvine/household_power_consumption.csv
 UCIrvine/household_power_consumption.txt
+UCIrvine/clean_full.csv
 UKRC
 UKREFIT
 UKREFIT.zip
