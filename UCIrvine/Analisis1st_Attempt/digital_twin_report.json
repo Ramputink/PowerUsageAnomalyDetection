@@ -1,0 +1,41 @@
+{
+  "similarity_test_period": {
+    "distribution": 0.813206,
+    "profile": 0.976757,
+    "correlation": 0.973968,
+    "acf": 0.983354,
+    "composite": 0.936821
+  },
+  "similarity_10y_sample": {
+    "distribution": 0.810766,
+    "profile": 0.975412,
+    "correlation": 0.972227,
+    "acf": 0.961956,
+    "composite": 0.93009
+  },
+  "n_train": 1444513,
+  "n_test_real": 604999,
+  "n_synthetic": 5260320,
+  "n_attacked": 19877,
+  "attack_rate": 0.003779,
+  "n_attack_types": 15,
+  "attack_types": [
+    "scaling",
+    "offset",
+    "noise",
+    "ramp",
+    "pulse",
+    "step",
+    "intermittent",
+    "replay",
+    "weekend_mimicry",
+    "seasonal_swap",
+    "smooth_decay",
+    "correlated_scaling",
+    "voltage_spoof",
+    "load_shift",
+    "adversarial"
+  ],
+  "power_factor": 0.9903,
+  "annual_trend_pct": 2.0
+}
