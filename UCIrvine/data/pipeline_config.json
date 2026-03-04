@@ -1,0 +1,71 @@
+{
+  "feature_cols": [
+    "Global_active_power",
+    "Global_reactive_power",
+    "Voltage",
+    "Global_intensity",
+    "Sub_metering_1",
+    "Sub_metering_2",
+    "Sub_metering_3"
+  ],
+  "attack_types": [
+    "scaling",
+    "offset",
+    "noise",
+    "ramp",
+    "step",
+    "replay",
+    "voltage_spoof"
+  ],
+  "categories": {
+    "Magnitud": [
+      "scaling",
+      "offset",
+      "noise"
+    ],
+    "Temporal": [
+      "ramp",
+      "step"
+    ],
+    "Patr\u00f3n": [
+      "replay"
+    ],
+    "F\u00edsico": [
+      "voltage_spoof"
+    ]
+  },
+  "severity_distribution": {
+    "low": 0.4,
+    "medium": 0.35,
+    "high": 0.25
+  },
+  "n_episodes_per_type_test": 50,
+  "n_episodes_per_type_val": 11,
+  "duration_range": [
+    15,
+    180
+  ],
+  "seeds": {
+    "test": 42,
+    "val": 777
+  },
+  "cutoff": "2009-09-20 12:45:00",
+  "val_start": "2009-06-09 07:37:00",
+  "splits": {
+    "train": 1300061,
+    "val": 144452,
+    "test": 604999,
+    "test_attacks": 31272,
+    "val_attacks": 7207
+  },
+  "train_stats": {
+    "gap_mean": 1.1248277669423512,
+    "gap_std": 1.1139464145520794
+  },
+  "feature_modes": {
+    "base": 8,
+    "medium": 13,
+    "full": 17,
+    "description": "base=LSTM-AE, medium=Dense-AE, full=IF"
+  }
+}
