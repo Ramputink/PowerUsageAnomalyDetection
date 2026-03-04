@@ -1,8 +1,40 @@
+# OS
 .DS_Store
-UCIrvine/household_power_consumption.csv
-UCIrvine/household_power_consumption.txt
-UCIrvine/clean_full.csv
+Thumbs.db
+
+# Python
+.venv/
+__pycache__/
+*.pyc
+.ipynb_checkpoints/
+
+# ─── Datasets descartados ────────────────────────────
 UKRC
 UKREFIT
 UKREFIT.zip
 
+# ─── UCI: datos fuente (descargar del UCI Repository) ─
+UCIrvine/household_power_consumption.csv
+UCIrvine/household_power_consumption.txt
+UCIrvine/household_power_consumption_train.csv
+UCIrvine/household_power_consumption_test.csv
+
+# ─── UCI: generados por Notebook 01 (ejecutar para regenerar) ─
+UCIrvine/clean_full.csv
+UCIrvine/uci_clean_full.csv
+
+# ─── UCI: generados por Notebook 02 (ejecutar para regenerar) ─
+UCIrvine/data/train_clean.csv
+UCIrvine/data/val_with_attacks.csv
+UCIrvine/data/test_with_attacks.csv
+
+# ─── UCI: residuos de versiones anteriores ─
+UCIrvine/val_with_attacks.csv
+
+# ─── UCI: primer intento (archivado, solo notebooks se trackean) ─
+UCIrvine/Analisis1st_Attempt/*.pkl
+UCIrvine/Analisis1st_Attempt/*.keras
+UCIrvine/Analisis1st_Attempt/*.parquet
+UCIrvine/Analisis1st_Attempt/*.csv
+UCIrvine/Analisis1st_Attempt/*.npy
+UCIrvine/Analisis1st_Attempt/*.h5
