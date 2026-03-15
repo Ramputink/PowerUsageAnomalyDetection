@@ -39,10 +39,10 @@
     "medium": 0.4,
     "high": 0.3
   },
-  "n_episodes_per_type_test": 50,
-  "n_episodes_per_type_val": 11,
+  "n_episodes_per_type_test": 120,
+  "n_episodes_per_type_val": 28,
   "duration_range": [
-    15,
+    45,
     180
   ],
   "seeds": {
@@ -55,8 +55,8 @@
     "train": 1300061,
     "val": 144452,
     "test": 604999,
-    "test_attacks": 31272,
-    "val_attacks": 7207
+    "test_attacks": 96717,
+    "val_attacks": 21739
   },
   "train_stats": {
     "gap_mean": 1.1248277669423512,
