@@ -1,0 +1,71 @@
+{
+  "model": "K-Means(K=3) + IF + Temporal Voting (Strategy A)",
+  "feature_mode": "full (per-cluster)",
+  "raw_f1": 0.7563,
+  "raw_f2": 0.7586,
+  "raw_precision": 0.7525,
+  "raw_recall": 0.7601,
+  "f1": 0.7684,
+  "f2": 0.7682,
+  "precision": 0.7688,
+  "recall": 0.768,
+  "auc_roc": 0.927,
+  "auc_pr": 0.7644,
+  "threshold": 0.559491,
+  "temporal_W": 5,
+  "temporal_K": 3,
+  "n_clusters": 3,
+  "strategy": "A",
+  "silhouette_scores": {
+    "2": 0.8498,
+    "3": 0.8524,
+    "4": 0.791,
+    "5": 0.797,
+    "6": 0.8025,
+    "7": 0.8146,
+    "8": 0.7849
+  },
+  "scaler_ablation": [
+    {
+      "Scaler": "RobustScaler",
+      "AUC-ROC": 0.9148,
+      "AUC-PR": 0.6875
+    },
+    {
+      "Scaler": "MinMaxScaler",
+      "AUC-ROC": 0.9148,
+      "AUC-PR": 0.6875
+    },
+    {
+      "Scaler": "Sin normalizar",
+      "AUC-ROC": 0.9148,
+      "AUC-PR": 0.6875
+    }
+  ],
+  "model_size_kb": 17425.4,
+  "ms_per_sample": 0.0082,
+  "n_features": 17,
+  "train_time_s": 3.67,
+  "detection_rate": 0.9857,
+  "median_latency_min": 4.0,
+  "granularity": "1 min",
+  "feature_names": [
+    "Global_active_power",
+    "Global_reactive_power",
+    "Voltage",
+    "Global_intensity",
+    "Sub_metering_1",
+    "Sub_metering_2",
+    "Sub_metering_3",
+    "VI_residual",
+    "hour_sin",
+    "hour_cos",
+    "dow_sin",
+    "dow_cos",
+    "gap_diff1",
+    "vi_res_abs",
+    "vi_res_roll15_mean",
+    "gap_intensity_ratio",
+    "sm_gap_ratio"
+  ]
+}
