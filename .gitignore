@@ -3,7 +3,7 @@
 Thumbs.db
 
 # Python
-.venv/
+tfg_env/
 __pycache__/
 *.pyc
 .ipynb_checkpoints/
@@ -38,3 +38,7 @@ UCIrvine/Analisis1st_Attempt/*.parquet
 UCIrvine/Analisis1st_Attempt/*.csv
 UCIrvine/Analisis1st_Attempt/*.npy
 UCIrvine/Analisis1st_Attempt/*.h5
+
+# ───  Carpetas de notas personales (no se trackean, solo notebooks) ─
+obsidian_energy_notes/
+Papers/
