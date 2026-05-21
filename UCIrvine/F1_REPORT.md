@@ -12,7 +12,7 @@ verificados re-ejecutando cada notebook entero con `nbconvert --execute`.
 ## Resumen ejecutivo
 
 **Resultado:** **0 detectores alcanzan F1 ≥ 0.975 de forma honesta.** El detector
-más cercano es **NB09 LightGBM (supervisado, yardstick) con F1 = 0.9104** tras 3
+más cercano es **NB09 LightGBM (supervisado, yardstick) con F1 = 0.9104** tras 2
 palancas aceptadas y 5 rechazadas. El objetivo de 0.975 no es alcanzable bajo el
 **CONTRATO CONGELADO** sin recurrir a palancas prohibidas (calibrar mirando
 test, fuga de etiquetas en features, recortar test, etc.).
@@ -32,7 +32,7 @@ reportado se reproduce ejecutando el notebook entero desde la primera celda.
 |---|---|---:|---:|---:|---:|---|
 | 03 | Isolation Forest | 0.7433 | **0.7544** | +0.0111 | 1 acept. | TECHO PROVISIONAL (1 palanca) |
 | 03b | KMeans+IF | 0.7684 | **0.7895** | +0.0211 | 1 acept. | TECHO PROVISIONAL (1 palanca) |
-| 04 | Dense-AE | 0.8157 | **0.8157** | 0 | 2 rech. + 1 acept. (iter 3 pendiente) | TECHO PROVISIONAL |
+| 04 | Dense-AE | 0.8157 | **0.8157** | 0 | 0 acept., 3 rech. | TECHO PROVISIONAL (3 palancas A/B/C probadas) |
 | 05 | LSTM-AE | 0.6514 | **0.7452** | +0.0938 | 2 acept. | TECHO PROVISIONAL (2 palancas) |
 | 07 | CNN-AE | 0.2743 | **0.4354** | **+0.1611** | 2 acept. | BUG arreglado, techo provisional |
 | 08 | Transformer-AE | 0.5872 | **0.6035** | +0.0163 | 1 acept. | TECHO PROVISIONAL |
