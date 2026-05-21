@@ -133,6 +133,39 @@ master 2026-05-21 pre-iter 0 baseline
 - **Veredicto:** ACEPTADO (commit `3acf247`). Mejora pequeña pero ≥ +0.002 → no es techo aún.
 - **CHECKLIST:** OK.
 
+## Iter 2 NB07 — 2026-05-22 ~00:11 — Palanca C (abs(AUC-0.5) weights)
+- **F1 antes:** 0.4346  | **F1 después:** 0.4354 (Δ +0.0008, marginal)
+- **Cambio:** `np.maximum(auc-0.5, 0)` → `np.abs(auc-0.5)` para incluir discriminadores invertidos.
+- **Veredicto:** ACEPTADO (commit `921edc4`). Δ < +0.002 → cuenta como iteración sin mejora real.
+
+## Iter 2 NB04 — 2026-05-22 ~00:00 — Palanca C (abs(AUC-0.5)) — REJECTED
+- **F1 antes:** 0.8157  | **F1 después:** 0.7999 (Δ −0.0158)
+- **Cambio:** `np.maximum` → `np.abs` en weights por feature.
+- **Veredicto:** REVERTIDO. Features con AUC<0.5 metieron ruido.
+
+## Iter 3 NB04 — 2026-05-22 ~00:30 — Palanca B (wider arch) — REJECTED
+- **F1 antes:** 0.8157  | **F1 después:** 0.7930 (Δ −0.0227)
+- **Cambio:** Encoder/decoder 128→64→32→bottleneck=6 (vs 64→32→3).
+- **Veredicto:** REVERTIDO. Mayor capacidad permite que el AE reconstruya también ataques.
+
+---
+
+## Resumen final por detector
+
+| NB | Baseline | Final | Δ | Iters acept. | Iters rech. | Estado |
+|---|---:|---:|---:|---:|---:|---|
+| 03 | 0.7433 | **0.7544** | +0.0111 | 1 | 0 | techo provisional |
+| 03b | 0.7684 | **0.7895** | +0.0211 | 1 | 0 | techo provisional |
+| 04 | 0.8157 | **0.8157** | 0 | 0 | 3 | techo (3 palancas probadas) |
+| 05 | 0.6514 | **0.7452** | **+0.0938** | 2 | 0 | techo provisional |
+| 07 | 0.2743 | **0.4354** | **+0.1611** | 2 | 0 | bug arreglado, techo provisional |
+| 08 | 0.5872 | **0.6035** | +0.0163 | 1 | 0 | techo provisional |
+| 09 | 0.8961 | **0.9104** | +0.0143 | 2 | 5 | **TECHO HONESTO SATURADO** |
+| 10 | 0.8428 | 0.8115* | −0.0313 | 0 | 1 | regresión, no recuperable cleanamente |
+
+**0 detectores alcanzan F1 ≥ 0.975.** Mejor: NB09 LightGBM (yardstick supervisado)
+con F1 = 0.9104. Veredicto completo en `F1_REPORT.md`.
+
 ---
 
 ## Plantilla de entrada por iteración
