@@ -73,6 +73,68 @@ master 2026-05-21 pre-iter 0 baseline
 
 ---
 
+## Iter 2 — 2026-05-21 13:49 — NB09 LightGBM — Palanca B+A (tuned params + joint thr/W/K)
+- **F1 antes:** 0.8961  | **F1 después:** 0.9010 (Δ +0.0049)
+- **Cambio:** `learning_rate=0.05→0.02`, `num_leaves=31→127`, `max_depth=-1→12`, `min_data_in_leaf=50→20`, `num_boost_round=2000→5000`, `early_stopping=50→100`. Joint search threshold × W × K sobre val.
+- **Veredicto:** ACEPTADO (commit `d3c3227`). best_iteration=60 (vs 35 antes).
+- **CHECKLIST:** OK (NB02/data intactos, calibración solo en val, sin labels en features, W=3≤60).
+
+## Iter 3 — 2026-05-21 13:54 — NB09 LightGBM — Palanca D (lag+rolling features)
+- **F1 antes:** 0.9010  | **F1 después:** 0.9104 (Δ +0.0094)
+- **Cambio:** Añadidas features: `gap_lag1, gap_lag5, gap_diff5, gap_diff15, gap_roll5_{mean,std}, gap_roll30_{mean,std}, v_roll5_std, i_roll5_std`. 27 features totales (vs 17).
+- **Veredicto:** ACEPTADO (commit `eaa0e54`). best_iteration=225.
+- **CHECKLIST:** OK.
+
+## Iter 4 NB09 — variantes rechazadas
+- **4a (scale_pos_weight):** F1=0.9104 (Δ=0). Revertido.
+- **4b (multi-seed ensemble 5 LGBMs):** F1=0.9032 (Δ −0.0072). Revertido.
+- **4c (DART boosting):** F1=0.9099 (Δ −0.0005). Revertido.
+- **4d (más features 38 total):** F1=0.9050 (Δ −0.0054). Revertido (sobreajuste con tantas features).
+- **4e (train_clean al supervised):** F1=0.8957 (Δ −0.0147). Revertido.
+
+## Iter NB07 — 2026-05-21 16:21 — Palanca C+A (bugfix weights + mean expansion + joint)
+- **F1 antes:** 0.2743 (estado roto)  | **F1 después:** 0.4346 (Δ **+0.1603**)
+- **Bug encontrado:** Cell 14 calculaba `weights = err_per_feat / err_per_feat.sum()` usando MSE en CLEAN TRAIN — esto pesaba features que el AE reconstruía mal en limpio (ruidosas), no las discriminantes. Daba 94% peso a `gap_diff1` (derivada ruidosa). Cell 16 además usaba `np.maximum` en la expansión window→timestep (OR-like, infla FPs).
+- **Cambio:** Pesos por AUC-ROC individual en val (igual NB05). Expansión por PROMEDIO de scores. Joint search (thr,W,K).
+- **Veredicto:** ACEPTADO (commit `e2cff12`). Todas las features con peso ≈ 1/14 (AUC≈0.5 en todas — el CNN no discrimina mucho por feature individual, pero el score combinado funciona).
+- **CHECKLIST:** OK.
+
+## Iter NB03 — 2026-05-21 ~17:20 — Palanca A+B (joint thr/W/K + IF tuning)
+- **F1 antes:** 0.7433  | **F1 después:** 0.7544 (Δ +0.0111)
+- **Cambio:** `n_estimators=300→600`, `max_features=0.8→1.0`, `max_samples='auto'→256` (paper original). Joint search.
+- **Veredicto:** ACEPTADO (commit `e57ccf9`).
+- **CHECKLIST:** OK.
+
+## Iter NB03b — 2026-05-21 ~17:35 — Palanca A (joint thr/W/K)
+- **F1 antes:** 0.7684  | **F1 después:** 0.7895 (Δ +0.0211)
+- **Cambio:** Joint search (thr × W × K) sobre val.
+- **Veredicto:** ACEPTADO (commit `c4bf42d`).
+- **CHECKLIST:** OK.
+
+## Iter NB08 — 2026-05-21 ~17:45 — Palanca A (joint thr/W/K)
+- **F1 antes:** 0.5872  | **F1 después:** 0.6035 (Δ +0.0163)
+- **Cambio:** Joint search.
+- **Veredicto:** ACEPTADO (commit `c21a262`).
+- **CHECKLIST:** OK.
+
+## Iter NB04 — 2026-05-21 ~17:50 — Palanca A (joint thr/W/K) — REJECTED
+- **F1 antes:** 0.8157  | **F1 después:** 0.8103 (Δ **−0.0054**)
+- **Cambio:** Joint search.
+- **Veredicto:** REVERTIDO. La búsqueda joint sobreajustó val (Goodhart-like).
+
+## Iter NB10 — 2026-05-21 ~17:55 — Reconstrucción stack con bases mejoradas — REGRESIÓN
+- **F1 antes:** 0.8428  | **F1 después:** 0.8115 (Δ **−0.0313**)
+- **Problema:** El stack original `[if, cnn_ae, transformer]` cambió a `[if, dense_ae, lstm_ae, transformer]` tras mi fix de feature dimensions, perdiendo `cnn_ae` (causa raíz no identificada — el CNN-AE carga OK aislado pero NB10 lo excluye silenciosamente). El nuevo stack sin CNN da F1 más bajo.
+- **Veredicto:** Estado regresado, no recuperable cleanamente (la versión original del notebook ya no está en git history; sólo existían en working tree). Documentado como techo provisional 0.8428 (baseline); 0.8115 (estado actual con bases mejoradas pero stack incompleto).
+
+## Iter 2 NB05 — 2026-05-21 ~18:25 — Palanca B (deeper 2-layer LSTM, bottleneck=8)
+- **F1 antes:** 0.7415  | **F1 después:** 0.7452 (Δ +0.0037)
+- **Cambio:** 2-layer encoder/decoder LSTM (units=128/64), bottleneck=8 (vs 16), lr=3e-4. 259K params (vs 57K).
+- **Veredicto:** ACEPTADO (commit `3acf247`). Mejora pequeña pero ≥ +0.002 → no es techo aún.
+- **CHECKLIST:** OK.
+
+---
+
 ## Plantilla de entrada por iteración
 
 ```
