@@ -50,6 +50,29 @@ master 2026-05-21 pre-iter 0 baseline
 
 ---
 
+## Iter 1 — 2026-05-21 13:40 — NB05 LSTM-AE — Palanca A (joint threshold × W × K)
+
+- **F1 antes:** 0.6514  (raw 0.6244, P=0.5055, R=0.9155, W=21, K=21, thr=0.4676)
+- **F1 después:** 0.7415  (raw 0.7403, P=0.6510, R=0.8611, W=3, K=3, thr=0.7636)  (Δ = **+0.0901**)
+- **Cambio aplicado:**
+  - Cell 15: `calibrate_threshold(beta=2.0)` → `beta=1.0` (umbral inicial F1-óptimo a nivel ventana).
+  - Cell 21 (apéndice): joint search sobre `(threshold ∈ 60 cuantiles del PR-curve val, W ∈ {3,5,7,9,11,15,21,31,45,60}, K ∈ [2..W])`, maximizando F1 smoothed timestep en val. Si el F1 conjunto supera al del grid (W,K) original, sobrescribimos `best_thr, best_W, best_K`.
+- **Re-ejecución completa:** nbconvert --execute --inplace OK (601s real, 1.5MB notebook escrito)
+- **CHECKLIST anti-trampa:** TODOS OK
+  - Notebook entero ejecutado sin error.
+  - F1 = `f1_score(y_test, y_pred_smooth)` sobre `test_with_attacks`.
+  - Scaler fit en `train_clean` (sin val ni test). Modelo entrenado solo con `X_train_w`.
+  - Umbral + (W,K) calibrados solo sobre val.
+  - Ninguna columna label/attack_type/episode/severity en features (`compute_features` solo usa sensores + derivadas físicas/temporales).
+  - NB02 y CSV de `data/` sin cambios (`git status` limpio en esos paths).
+  - W=3 ≤ 60.
+  - Test set tamaño íntegro (df_test cargado sin filtros).
+  - Reproducible vía nbconvert.
+- **Veredicto:** ACEPTADO  (commit `a2564b1`)
+- **Análisis:** El umbral previo (0.4676) era demasiado permisivo por usar `beta=2.0` (F2 prioriza recall). El joint search en val recolocó el umbral en 0.7636 (≈P90 de scores limpios), recuperando precision de 0.51 a 0.65 con coste menor en recall (0.92→0.86). El W=21/K=21 era una sobre-corrección del defecto de umbral — con un umbral correcto, basta W=3/K=3 (consenso en 3 minutos). Sigue muy por debajo del 0.975 objetivo; los AEs no supervisados parecen estar lejos del techo aunque mejor calibrados.
+
+---
+
 ## Plantilla de entrada por iteración
 
 ```
