@@ -1,0 +1,16 @@
+{
+  "auc_roc_uci": 0.9317,
+  "auc_pr_uci": 0.8553,
+  "auc_roc_ukdale": 0.7851938918415363,
+  "auc_pr_ukdale": 0.6754727986426242,
+  "f1_ukdale_thr_uci": 0.6680554240444402,
+  "f1_ukdale_thr_recal": 0.676726258815811,
+  "threshold_uci": 0.28908685908270937,
+  "threshold_ukdale": 0.3120352035156417,
+  "caveats": [
+    "UK-DALE no tiene Voltage ni Global_intensity reales -> VI_residual = 0",
+    "voltage_spoof omitido (no hay Voltage para spoofar)",
+    "replay simulado, no usa contexto historico real",
+    "Frecuencia resampleada de 6s a 1min"
+  ]
+}
