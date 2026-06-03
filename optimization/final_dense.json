@@ -1,0 +1,29 @@
+{
+  "model": "dense",
+  "cfg": {
+    "model": "dense",
+    "mode": "full",
+    "widths": [
+      64,
+      32
+    ],
+    "bottleneck": 8,
+    "lr": 0.0003,
+    "epochs": 40,
+    "batch": 512,
+    "dropout": 0.0,
+    "patience": 8,
+    "weighted": true,
+    "seed": 541
+  },
+  "f1": 0.8154,
+  "auc_pr": 0.8568,
+  "auc_roc": 0.9317,
+  "precision": 0.8616,
+  "recall": 0.7739,
+  "baseline_f1": 0.8157,
+  "baseline_auc_pr": 0.8553,
+  "delta_f1": -0.0003,
+  "delta_auc_pr": 0.0015,
+  "note": "300k subsample; sin headroom (ya afinado)"
+}

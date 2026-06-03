@@ -1,0 +1,32 @@
+{
+  "model": "cnn",
+  "cfg": {
+    "kind": "cnn",
+    "mode": "full",
+    "filters": [
+      32,
+      16,
+      8
+    ],
+    "ksize": 5,
+    "bottleneck": 8,
+    "lr": 0.0003,
+    "epochs": 25,
+    "batch": 512,
+    "patience": 6,
+    "seed": 312
+  },
+  "f1": 0.6428,
+  "auc_pr": 0.6936,
+  "auc_roc": 0.9137,
+  "precision": 0.5394,
+  "recall": 0.7954,
+  "raw_f1": 0.6416,
+  "temporal_W": 3,
+  "temporal_K": 3,
+  "baseline_f1": 0.4354,
+  "baseline_auc_pr": 0.4322,
+  "delta_f1": 0.2074,
+  "delta_auc_pr": 0.2614,
+  "finalize_secs": 400.5
+}

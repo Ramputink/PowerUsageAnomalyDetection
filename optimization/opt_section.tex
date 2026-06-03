@@ -1,0 +1,75 @@
+\section{Optimización de hiperparámetros}
+\label{sec:resultados-optimizacion}
+
+Como cierre experimental se realizó una \textbf{búsqueda sistemática de
+hiperparámetros} sobre los detectores, siguiendo un \emph{benchmark-optimization
+loop}: (i) se fija el \emph{baseline} de cada modelo; (ii) se reproduce ese
+\emph{baseline} dentro de un \emph{harness} de búsqueda autocontenido
+---verificación previa imprescindible: el \emph{Isolation Forest} y el Dense-AE
+se reprodujeron exactamente antes de buscar---; (iii) se exploran variantes por
+muestreo aleatorio sobre la región de hiperparámetros, registrando cada una en un
+CSV \emph{append-only}; y (iv) se promueve la mejor y se \textbf{re-valida a
+escala completa} antes de confirmarla. El \emph{correctness gate} es el mismo
+contrato de no-trampa de todo el trabajo: entrenamiento sobre \code{train\_clean},
+calibración de umbral y de $(W,K)$ \emph{solo} en validación, evaluación en test,
+sin fuga de etiquetas. Para acelerar la búsqueda, el entrenamiento y la
+puntuación se realizan sobre submuestras; los finalistas se re-entrenan y evalúan
+a escala completa, que es la cifra reportada en la \cref{tab:optim}.
+
+\begin{table}[H]
+\centering
+\caption{Optimización de hiperparámetros: $\fone$ y $\aucpr$ antes (\emph{base})
+y después (\emph{opt}) de la búsqueda, bajo el mismo contrato. Mejora neta en
+negrita.}
+\label{tab:optim}
+\footnotesize
+\begin{tabular}{lcccccc}
+\toprule
+Detector & $\fone$ base & $\fone$ opt & $\Delta\fone$ & $\aucpr$ base & $\aucpr$ opt & $\Delta\aucpr$ \\
+\midrule
+CNN-AE         & 0{,}435 & \textbf{0{,}643} & \textbf{+0{,}207} & 0{,}432 & 0{,}694 & +0{,}261 \\
+Transformer-AE & 0{,}604 & \textbf{0{,}660} & +0{,}057 & 0{,}584 & 0{,}692 & +0{,}108 \\
+VAE            & 0{,}693 & \textbf{0{,}747} & +0{,}054 & 0{,}500 & 0{,}758 & +0{,}258 \\
+LSTM-AE        & 0{,}745 & 0{,}745$^{\dagger}$ & $\approx$0 & 0{,}881 & 0{,}881 & $\approx$0 \\
+IF             & 0{,}754 & \textbf{0{,}795} & +0{,}041 & 0{,}782 & 0{,}853 & +0{,}070 \\
+Dense-AE       & 0{,}816 & 0{,}815 & $\approx$0 & 0{,}855 & 0{,}855 & $\approx$0 \\
+\bottomrule
+\end{tabular}
+\\[2pt]
+{\footnotesize $^{\dagger}$ El mejor candidato del LSTM mejoraba sobre el subconjunto de búsqueda pero \emph{regresó} ($0{,}738$) al re-validar a escala completa; se conserva el \emph{baseline}. La re-validación detectó así un sobreajuste al subconjunto.}
+\end{table}
+
+Las mejoras provienen de tres palancas principales: (a) usar el conjunto de
+características físicas \emph{completo} (17, incluyendo $\vires$ y derivadas) en
+los autoencoders convolucional y \emph{transformer}, que en su versión original
+empleaban un subconjunto de 14; (b) ponderar el error de reconstrucción solo por
+las características \emph{discriminantes} ($\mathrm{AUC}>0{,}5$) en lugar de
+incluir también las anti-discriminantes; y (c) en el \emph{Isolation Forest},
+aumentar \code{max\_samples} de 256 a 2048, que mejora de forma marcada la
+calidad de la puntuación de anomalía.
+
+El hallazgo más llamativo es el \textbf{CNN-AE}, cuyo $\fone$ pasa de $0{,}435$ a
+$0{,}643$ (un salto de $0{,}21$ puntos) y su $\aucpr$ de $0{,}43$ a $0{,}69$: el
+\emph{baseline} estaba claramente infra-optimizado, y bastó corregir el conjunto
+de características y la ponderación del \emph{score} para situarlo en línea con el
+resto de autoencoders. El \textbf{VAE} mejora sobre todo en $\aucpr$ ($+0{,}26$)
+al puntuar con la probabilidad de reconstrucción \emph{sin} ponderación espuria y
+recalibrar el umbral. El \textbf{LSTM-AE}, en cambio, ilustra el valor de la re-validación: un candidato
+que parecía mejorar sobre el subconjunto resultó un sobreajuste y se descartó al
+evaluarlo a escala completa, conservándose el \emph{baseline} ya afinado. En el extremo opuesto,
+el \textbf{Dense-AE} ---ya muy afinado en el trabajo original--- no admite mejora
+apreciable, lo que es en sí mismo un resultado: confirma que era una elección de
+diseño acertada. En conjunto, la optimización \textbf{no altera las conclusiones
+cualitativas} del trabajo (se mantiene el orden relativo y la brecha
+supervisado/no-supervisado), pero estrecha el margen de los detectores más
+débiles.
+
+\begin{observacion}[Reproducibilidad]
+Toda la búsqueda es reproducible mediante los \emph{scripts} del directorio
+\code{optimization/} (\code{opt\_pointwise.py}, \code{opt\_window.py},
+\code{finalize.py}, \code{consolidate.py}), que reutilizan el módulo común
+\code{tfg\_common.py} ---y por tanto el mismo contrato de datos y protocolo de
+evaluación que los \emph{notebooks}---. Los \emph{notebooks} de partida se
+conservan intactos como \emph{baseline} documentado; la optimización es una capa
+adicional, no una reescritura.
+\end{observacion}

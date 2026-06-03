@@ -1,0 +1,5 @@
+ts,f1,auc_pr,auc_roc,precision,recall,raw_f1,cfg,secs
+1780485412,0.8086,0.8318,0.9346,0.8118,0.8054,0.8088,"{""model"": ""dense"", ""mode"": ""full"", ""widths"": [64, 32], ""bottleneck"": 4, ""lr"": 0.0005, ""epochs"": 25, ""batch"": 1024, ""dropout"": 0.0, ""patience"": 8, ""weighted"": true, ""seed"": 42}",97.5
+1780485920,0.794,0.8134,0.9247,0.8301,0.761,0.7879,"{""model"": ""dense"", ""mode"": ""full"", ""widths"": [160, 80], ""bottleneck"": 4, ""lr"": 0.0005, ""epochs"": 40, ""batch"": 1024, ""dropout"": 0.0, ""patience"": 8, ""weighted"": false, ""seed"": 501}",212.0
+1780486207,0.8034,0.8516,0.9366,0.8481,0.7631,0.7914,"{""model"": ""dense"", ""mode"": ""full"", ""widths"": [64, 32, 16], ""bottleneck"": 6, ""lr"": 0.0005, ""epochs"": 15, ""batch"": 1024, ""dropout"": 0.05, ""patience"": 8, ""weighted"": true, ""seed"": 465}",113.8
+1780487182,0.8154,0.8568,0.9317,0.8616,0.7739,0.8096,"{""model"": ""dense"", ""mode"": ""full"", ""widths"": [64, 32], ""bottleneck"": 8, ""lr"": 0.0003, ""epochs"": 40, ""batch"": 512, ""dropout"": 0.0, ""patience"": 8, ""weighted"": true, ""seed"": 541}",619.9

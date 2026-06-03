@@ -1,0 +1,22 @@
+{
+  "f1": 0.6308612650655406,
+  "auc_pr": 0.6747888005704539,
+  "auc_roc": 0.920530800989984,
+  "precision": 0.5145665901262916,
+  "recall": 0.8150716071834507,
+  "cfg": {
+    "kind": "transformer",
+    "mode": "full",
+    "patch_len": 4,
+    "d_model": 64,
+    "n_heads": 8,
+    "ffn": 256,
+    "n_layers": 3,
+    "dropout": 0.2,
+    "lr": 0.0003,
+    "epochs": 35,
+    "batch": 256,
+    "patience": 5,
+    "seed": 643
+  }
+}

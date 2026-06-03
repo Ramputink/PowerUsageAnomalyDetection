@@ -1,0 +1,56 @@
+{
+  "IF": {
+    "f1": 0.7544,
+    "auc_pr": 0.7824,
+    "auc_roc": 0.9266,
+    "file": "metrics_isolation_forest.json"
+  },
+  "KMeans+IF": {
+    "f1": 0.7895,
+    "auc_pr": 0.7644,
+    "auc_roc": 0.927,
+    "file": "metrics_kmeans_if.json"
+  },
+  "Dense-AE": {
+    "f1": 0.8157,
+    "auc_pr": 0.8553,
+    "auc_roc": 0.9317,
+    "file": "metrics_dense_autoencoder.json"
+  },
+  "LSTM-AE": {
+    "f1": 0.7452,
+    "auc_pr": 0.8807,
+    "auc_roc": 0.9393,
+    "file": "metrics_lstm_autoencoder.json"
+  },
+  "CNN-AE": {
+    "f1": 0.4354,
+    "auc_pr": 0.4322,
+    "auc_roc": 0.7585,
+    "file": "metrics_cnn_autoencoder.json"
+  },
+  "Transformer-AE": {
+    "f1": 0.6035,
+    "auc_pr": 0.5839,
+    "auc_roc": 0.8856,
+    "file": "metrics_transformer_autoencoder.json"
+  },
+  "LightGBM": {
+    "f1": 0.9104,
+    "auc_pr": 0.9408,
+    "auc_roc": 0.9627,
+    "file": "metrics_lightgbm.json"
+  },
+  "Stacking": {
+    "f1": 0.8115,
+    "auc_pr": 0.8807,
+    "auc_roc": 0.9526,
+    "file": "metrics_stacking.json"
+  },
+  "VAE": {
+    "f1": 0.6927,
+    "auc_pr": 0.5004,
+    "auc_roc": 0.8741,
+    "file": "metrics_vae.json"
+  }
+}

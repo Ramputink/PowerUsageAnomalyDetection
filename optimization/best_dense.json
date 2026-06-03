@@ -1,0 +1,23 @@
+{
+  "f1": 0.8154022975983615,
+  "auc_pr": 0.8568317098511815,
+  "auc_roc": 0.9316750685015989,
+  "precision": 0.8616374646006493,
+  "recall": 0.7738763609293092,
+  "cfg": {
+    "model": "dense",
+    "mode": "full",
+    "widths": [
+      64,
+      32
+    ],
+    "bottleneck": 8,
+    "lr": 0.0003,
+    "epochs": 40,
+    "batch": 512,
+    "dropout": 0.0,
+    "patience": 8,
+    "weighted": true,
+    "seed": 541
+  }
+}
