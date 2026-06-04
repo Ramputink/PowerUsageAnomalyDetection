@@ -12,6 +12,8 @@ import pandas as pd
 import joblib
 warnings.filterwarnings('ignore')
 
+import sys
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import tfg_common as C
 
 DATA = C.DATA_DIR

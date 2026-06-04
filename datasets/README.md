@@ -31,7 +31,7 @@ Vivienda en Sceaux (Francia), 2006–2010, resolución 1 minuto. Es el dataset s
 - **Fuente oficial:** https://jack-kelly.com/data/  (UK-DALE, UKERC EDC)
 - **Crudo (no versionado):** carpeta `UKRC/ukdale/house_{1..5}/channel_1.dat`.
 - **Procesado versionado (en `UCIrvine/data/`):** `ukdale_multihouse_1min.csv.gz` — `mains` de las 5 casas resampleado a 1 minuto en kW (~16 MB, 3 M filas). Columnas: `datetime`, `Global_active_power` (kW), `house`.
-- **Regenerar:** `python prepare_ukdale.py` (lee el crudo y reescribe el `.csv.gz`).
+- **Regenerar:** `python datasets/prepare_ukdale.py` (lee el crudo y reescribe el `.csv.gz`).
 - **Limitación conocida:** UK-DALE no mide Voltage ni Intensidad → la feature física `VI_residual` es 0 en este dataset (ver discusión en NB13).
 
 ## 3. REFIT / UKREFIT (descartado)
