@@ -1,16 +1,86 @@
 {
+  "n_houses": 5,
+  "houses": [
+    "house_1",
+    "house_2",
+    "house_3",
+    "house_4",
+    "house_5"
+  ],
   "auc_roc_uci": 0.9317,
   "auc_pr_uci": 0.8553,
-  "auc_roc_ukdale": 0.7851938918415363,
-  "auc_pr_ukdale": 0.6754727986426242,
-  "f1_ukdale_thr_uci": 0.6680554240444402,
-  "f1_ukdale_thr_recal": 0.676726258815811,
-  "threshold_uci": 0.28908685908270937,
-  "threshold_ukdale": 0.3120352035156417,
+  "f1_uci": 0.8157,
+  "per_house": [
+    {
+      "casa": "house_1",
+      "n_min": 525600,
+      "pct_atacado": 5.320776255707763,
+      "AUC_ROC": 0.804428690655579,
+      "AUC_PR": 0.6954923161887727,
+      "F1_thr_UCI": 0.697165923807922,
+      "F1_recal": 0.7178199115339305,
+      "thr_recal": 0.3193290825989731
+    },
+    {
+      "casa": "house_2",
+      "n_min": 287566,
+      "pct_atacado": 4.843062114436338,
+      "AUC_ROC": 0.8341941425751103,
+      "AUC_PR": 0.6995210932369658,
+      "F1_thr_UCI": 0.6874356121481848,
+      "F1_recal": 0.6980223559759243,
+      "thr_recal": 0.32094244701902974
+    },
+    {
+      "casa": "house_3",
+      "n_min": 52520,
+      "pct_atacado": 11.014851485148515,
+      "AUC_ROC": 0.8049500045263392,
+      "AUC_PR": 0.6839601594632394,
+      "F1_thr_UCI": 0.6866591352572661,
+      "F1_recal": 0.6955692177231291,
+      "thr_recal": 0.3261200073796306
+    },
+    {
+      "casa": "house_4",
+      "n_min": 224457,
+      "pct_atacado": 5.413509046276125,
+      "AUC_ROC": 0.8775922209750643,
+      "AUC_PR": 0.7363032121640181,
+      "F1_thr_UCI": 0.7243947858472998,
+      "F1_recal": 0.7500863131935882,
+      "thr_recal": 0.3232019350888381
+    },
+    {
+      "casa": "house_5",
+      "n_min": 190043,
+      "pct_atacado": 5.224080865909294,
+      "AUC_ROC": 0.7718690654101977,
+      "AUC_PR": 0.6581799521359475,
+      "F1_thr_UCI": 0.6536516395671326,
+      "F1_recal": 0.6899526181508929,
+      "thr_recal": 0.35984860132917185
+    }
+  ],
+  "auc_roc_ukdale_mean": 0.8186068248284581,
+  "auc_roc_ukdale_std": 0.03966795878897374,
+  "auc_pr_ukdale_mean": 0.6946913466377888,
+  "auc_pr_ukdale_std": 0.028300864225545983,
+  "f1_thr_uci_mean": 0.6898614193255611,
+  "f1_recal_mean": 0.710290083315493,
+  "auc_pr_retention_pct": 81.22195096899202,
+  "recall_by_attack_mean": {
+    "scaling": 0.7234503233712645,
+    "offset": 0.7617808764884498,
+    "noise": 0.37475021490893595,
+    "ramp": 0.3856287454438224,
+    "step": 0.7855850865881786,
+    "replay": 0.4696364022751996
+  },
   "caveats": [
-    "UK-DALE no tiene Voltage ni Global_intensity reales -> VI_residual = 0",
+    "UK-DALE no mide Voltage ni Global_intensity -> VI_residual=0 en las 5 casas",
     "voltage_spoof omitido (no hay Voltage para spoofar)",
-    "replay simulado, no usa contexto historico real",
-    "Frecuencia resampleada de 6s a 1min"
+    "replay simulado (sin contexto historico real)",
+    "mains resampleado de 6s a 1min; recorte a 1 a\u00f1o por casa"
   ]
 }
