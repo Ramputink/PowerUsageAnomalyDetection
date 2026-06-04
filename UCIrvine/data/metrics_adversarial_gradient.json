@@ -1,0 +1,34 @@
+{
+  "model": "Dense-AE + ataques de gradiente",
+  "clean_f1": 0.7652899606931063,
+  "clean_auc_pr": 0.7900523927797862,
+  "defended_clean_f1": 0.7944097094520044,
+  "det_at_eps12_pgd": 0.8666666666666667,
+  "det_at_eps12_pgd_defended": 0.7393333333333333,
+  "det_at_eps12_fgsm": 0.985,
+  "defense_gain_mean": -0.0483,
+  "eps50_pgd": null,
+  "eps50_pgd_defended": null,
+  "evasion_by_severity": {
+    "0.5": {
+      "low": 0.067,
+      "medium": 0.052,
+      "high": 0.028
+    },
+    "1.2": {
+      "low": 0.171,
+      "medium": 0.128,
+      "high": 0.111
+    }
+  },
+  "cw_detection": 0.956,
+  "cw_linf": 3.611,
+  "transfer": {
+    "eps": 1.2,
+    "det_target": 0.867,
+    "det_surrogate": 0.912,
+    "det_ensemble": 0.958
+  },
+  "threat_model": "caja blanca, perturbaci\u00f3n enmascarada (reloj congelado)",
+  "notes": "FGSM/PGD/C&W manuales; adversarial training (Madry 2018)."
+}
