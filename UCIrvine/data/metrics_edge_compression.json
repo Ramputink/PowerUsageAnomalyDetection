@@ -1,0 +1,86 @@
+{
+  "model": "Dense-AE (compresi\u00f3n edge)",
+  "float32_f1": 0.8168974424233891,
+  "float32_weights_kb": 27.0,
+  "ptq": [
+    {
+      "variante": "float32",
+      "tflite_kb": 30.8,
+      "gzip_kb": 26.6,
+      "f1": 0.7839,
+      "auc_pr": 0.7815,
+      "precision": 0.775,
+      "recall": 0.793
+    },
+    {
+      "variante": "float16",
+      "tflite_kb": 18.8,
+      "gzip_kb": 14.6,
+      "f1": 0.7843,
+      "auc_pr": 0.7817,
+      "precision": 0.774,
+      "recall": 0.794
+    },
+    {
+      "variante": "dynamic_int8",
+      "tflite_kb": 14.1,
+      "gzip_kb": 10.4,
+      "f1": 0.7808,
+      "auc_pr": 0.7837,
+      "precision": 0.778,
+      "recall": 0.784
+    },
+    {
+      "variante": "full_int8",
+      "tflite_kb": 17.2,
+      "gzip_kb": 10.6,
+      "f1": 0.7406,
+      "auc_pr": 0.7487,
+      "precision": 0.728,
+      "recall": 0.754
+    }
+  ],
+  "pruning": [
+    {
+      "sparsity_obj": 0.0,
+      "sparsity_real": 0.0,
+      "gzip_kb": 25.0,
+      "f1": 0.8169,
+      "auc_pr": 0.8408
+    },
+    {
+      "sparsity_obj": 0.5,
+      "sparsity_real": 0.5,
+      "gzip_kb": 14.8,
+      "f1": 0.7396,
+      "auc_pr": 0.6624
+    },
+    {
+      "sparsity_obj": 0.7,
+      "sparsity_real": 0.698,
+      "gzip_kb": 10.0,
+      "f1": 0.7412,
+      "auc_pr": 0.586
+    },
+    {
+      "sparsity_obj": 0.8,
+      "sparsity_real": 0.799,
+      "gzip_kb": 7.3,
+      "f1": 0.7327,
+      "auc_pr": 0.581
+    },
+    {
+      "sparsity_obj": 0.9,
+      "sparsity_real": 0.899,
+      "gzip_kb": 4.4,
+      "f1": 0.7421,
+      "auc_pr": 0.5364
+    }
+  ],
+  "latency_ms_float32": 0.00161,
+  "latency_ms_int8": 0.00164,
+  "best_int8_f1": 0.7406,
+  "best_int8_kb": 17.2,
+  "compression_ratio_int8": 1.6,
+  "notes": "PTQ via TFLiteConverter; magnitude pruning manual + gzip."
+}
