@@ -282,3 +282,20 @@ jupyter nbconvert --to notebook --execute --inplace \
 # Leer el F1 resultante
 python -c "import json; print(json.load(open('data/metrics_lightgbm.json'))['f1'])"
 ```
+
+
+---
+
+## Dimensiones más allá del F1 (ampliación NB15-NB20)
+
+La ampliación añade ejes de evaluación que el F1 puntual no captura:
+
+| Eje | Fuente | Resultado |
+|---|---|---|
+| Incertidumbre | VAE (NB15) | ECE=0.0487  inc. media=102.4622 |
+| Privacidad | Federated+DP (NB17) | coste F1 federado=-0.0211  ε∈[1.23,15.95] |
+| Robustez | PGD (NB18) | ε50 sin def=None  con def=None  ens=0.958 |
+| Eficiencia | int8 (NB19) | 17.2 KB  (×1.6 compresión)  F1=0.7406 |
+| Generalización | DDPM (NB16) | realismo BC=0.8088  AUC-PR=0.2697 |
+
+Véase NB15 (incertidumbre), NB16 (generativo), NB17 (privacidad), NB18 (robustez), NB19 (eficiencia) y `figures/comparison_radar.png`.
