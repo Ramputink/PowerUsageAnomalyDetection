@@ -1,0 +1,283 @@
+% ─────────────────────────────────────────────────────────────────────
+%  Capítulo 3 — Marco teórico
+% ─────────────────────────────────────────────────────────────────────
+\chapter{Marco teórico}
+\label{cap:teorico}
+
+Este capítulo agrupa los fundamentos teóricos sobre los que se apoyan los detectores y métricas de los capítulos siguientes. Damos por supuesto que el lector tiene la formación habitual de un ingeniero de telecomunicación ---señales y sistemas, estadística, álgebra lineal---, pero no asumimos base previa en \textit{deep learning}: por eso desarrollamos los modelos desde el perceptrón hasta el \textit{transformer}, sin atajos.
+
+\section{Series temporales y detección de anomalías}
+\label{sec:teo-ts}
+
+Una \emph{serie temporal} es una sucesión de observaciones $\{x_t\}_{t=1}^{T}$ indexada por el tiempo, con $x_t \in \mathbb{R}^d$ en el caso multivariante. Una serie de consumo doméstico es típicamente multivariante (potencia activa, reactiva, tensión, intensidad, submedidores) y muestreada de forma uniforme (resolución de un minuto en el caso de UCI).
+
+\begin{definicion}[Estacionariedad débil]
+Una serie es \emph{débilmente estacionaria} si su media $\mu_t = \mathbb{E}[x_t]$ y su autocovarianza $\gamma(s, t) = \mathrm{Cov}(x_s, x_t)$ dependen solo del retardo $|s-t|$.
+\end{definicion}
+
+El consumo doméstico claramente no lo es: hay tendencias estacionales entre verano e invierno y patrones diarios y semanales evidentes. Existen técnicas clásicas para aislar tendencia, estacionalidad y residuo, como la descomposición STL \cite{cleveland1990stl}, pero aquí preferimos no aplicar descomposición explícita y dejar que sean los propios modelos ---sobre todo los recurrentes y los \textit{transformer}--- los que aprendan esa estructura desde los datos.
+
+\subsection{Tipos de anomalía en series temporales}
+
+La taxonomía clásica de Chandola \emph{et al.} \cite{chandola2009ad} distingue tres tipos de anomalía que se trasladan bien al caso de series temporales. Una anomalía \textbf{puntual} es una muestra suelta fuera del rango esperado ---un valor extremo aislado. Una anomalía \textbf{contextual} es un valor normal por sí solo pero raro en su contexto temporal, como un pico de consumo a las 3 de la mañana en un perfil habitualmente bajo a esa hora. Una anomalía \textbf{colectiva}, por último, es una sucesión de muestras que individualmente podrían pasar por normales pero que juntas forman un patrón inusual; los ataques FDI sostenidos en el tiempo ---\textit{ramp}, \textit{step}, \textit{replay}--- caen casi siempre en esta categoría, normalmente con un componente contextual añadido.
+
+\subsection{Detección por reconstrucción}
+
+En detección no supervisada sobre series temporales, el paradigma de referencia es la \emph{detección por reconstrucción}. La idea es directa: se entrena un modelo $f_\theta$ a reproducir con bajo error las muestras del conjunto limpio; lo que no reconstruye bien queda marcado como sospechoso. Formalmente, dado el detector con función de \emph{score}
+\begin{equation}
+s_\theta(\bm{x}) \;=\; \| \bm{x} - f_\theta(\bm{x}) \|_2^2,
+\label{eq:rec-score}
+\end{equation}
+y un umbral $\tau$ calibrado sobre un conjunto de validación, la predicción es $\hat y_t = \mathbb{1}\{s_\theta(\bm{x}_t) > \tau\}$. La elección de $\tau$ y la posible ponderación por característica de la \cref{eq:rec-score} son decisiones de calibración clave que se desarrollan en \cref{cap:diseno}.
+
+\section{Modelos clásicos de detección de anomalías}
+\label{sec:teo-clasicos}
+
+\subsection{Isolation Forest}
+
+El \textit{Isolation Forest} \cite{liu2008isolation,liu2012iforest} parte de una intuición que resulta sorprendentemente eficaz: como las muestras anómalas son raras y diferentes, hacen falta menos particiones aleatorias para aislarlas que las normales. El algoritmo construye un bosque de árboles binarios aleatorios; en cada nodo elige al azar una característica y un umbral dentro de su rango, y deja crecer el árbol hasta aislar cada muestra o hasta tocar una profundidad límite.
+
+\paragraph{Path length y anomaly score.} Sea $h(\bm{x})$ la profundidad media del nodo terminal de $\bm{x}$ sobre todos los árboles del bosque. El \emph{anomaly score} se define como
+\begin{equation}
+s(\bm{x}, n) \;=\; 2^{-\frac{h(\bm{x})}{c(n)}}, \quad c(n) = 2H(n-1) - \frac{2(n-1)}{n},
+\label{eq:if-score}
+\end{equation}
+donde $n$ es el tamaño de la muestra y $H(\cdot)$ es la serie armónica. El factor $c(n)$ normaliza el \emph{path length} esperado de un árbol binario de búsqueda; $s \to 1$ cuando $\bm{x}$ se aísla rápidamente (anomalía) y $s \to 0$ cuando se aísla lento (normal). El método tiene complejidad $\mathcal{O}(n \log n)$ en entrenamiento y $\mathcal{O}(\log n)$ por inferencia.
+
+\subsection{K-Means y detectores híbridos}
+
+El \emph{clustering} \emph{K-Means} \cite{macqueen1967some} particiona el espacio de características en $K$ grupos, asignando cada muestra al centroide $\bm{\mu}_k$ más próximo y minimizando la suma de cuadrados intra-cluster $\sum_k \sum_{\bm{x} \in C_k} \|\bm{x} - \bm{\mu}_k\|_2^2$. La elección de $K$ se hace habitualmente por \emph{silhouette} \cite{rousseeuw1987silhouette} o por el método del codo.
+
+El detector híbrido K-Means+IF (NB03b) nace de una observación sencilla: el consumo doméstico tiene regímenes distintos ---día y noche, laborables y festivos--- y un detector que aprenda esa variabilidad por régimen debería capturar mejor lo que es normal. Probamos dos estrategias y elegimos la mejor por validación cruzada interna. La estrategia A entrena un \textit{Isolation Forest} independiente por cada \textit{cluster}, y en inferencia asigna cada muestra a su centroide más cercano para aplicarle el IF correspondiente. La estrategia B mantiene un único IF global pero le añade como \textit{features} las pertenencias \textit{soft} a cada \textit{cluster}, codificadas como vector de distancias normalizadas a los centroides.
+
+\section{Redes neuronales y aprendizaje profundo}
+\label{sec:teo-dl}
+
+\subsection{Perceptrón multicapa}
+
+Un \emph{perceptrón multicapa} (MLP) es una composición de funciones lineales y no lineales:
+\begin{equation}
+\bm{h}^{(\ell)} = \sigma\!\left( \bm{W}^{(\ell)} \bm{h}^{(\ell-1)} + \bm{b}^{(\ell)} \right), \quad \ell = 1, \ldots, L,
+\label{eq:mlp}
+\end{equation}
+con $\bm{h}^{(0)} = \bm{x}$ y $\sigma$ una función de activación no lineal. Las funciones de activación habituales son la sigmoide $\sigma(z) = 1/(1+e^{-z})$, la ReLU $\sigma(z) = \max(0,z)$ \cite{nair2010relu}, la LeakyReLU $\sigma(z) = \max(\alpha z, z)$ con $\alpha$ pequeño, y la GELU $\sigma(z) = z\,\Phi(z)$ donde $\Phi$ es la cdf normal estándar \cite{hendrycks2016gelu}.
+
+Los parámetros $\{\bm{W}^{(\ell)}, \bm{b}^{(\ell)}\}$ se aprenden minimizando una pérdida $\mathcal{L}(\theta)$ mediante \emph{retropropagación} \cite{rumelhart1986backprop} y \emph{descenso de gradiente estocástico}. El optimizador \emph{Adam} \cite{kingma2014adam} adapta la tasa de aprendizaje por parámetro a partir de momentos de primer y segundo orden del gradiente y es el estándar de facto en la práctica.
+
+\subsection{Autoencoder}
+
+Un \emph{autoencoder} (AE) \cite{hinton2006reducing} es una arquitectura $f_\theta: \mathbb{R}^d \to \mathbb{R}^d$ que se factoriza en un \emph{encoder} $g: \mathbb{R}^d \to \mathbb{R}^k$ y un \emph{decoder} $h: \mathbb{R}^k \to \mathbb{R}^d$ con $k < d$, entrenados conjuntamente para minimizar el error de reconstrucción:
+\begin{equation}
+\theta^* = \arg\min_\theta \frac{1}{N} \sum_{i=1}^{N} \| \bm{x}_i - h(g(\bm{x}_i)) \|_2^2.
+\label{eq:ae-loss}
+\end{equation}
+El \textit{bottleneck} de dimensión $k$ actúa, literalmente, como un cuello de botella informativo: obliga al modelo a quedarse con una representación comprimida de aquello que es habitual. En inferencia, las muestras anómalas no encajan bien en esa representación comprimida y se delatan con un error de reconstrucción más alto.
+
+\paragraph{MSE ponderado.} Una mejora habitual es ponderar el error de reconstrucción por característica:
+\begin{equation}
+s(\bm{x}) = \sum_{j=1}^{d} w_j (x_j - \hat x_j)^2, \quad w_j \propto \mathrm{AUC}_j - 0.5,
+\label{eq:weighted-mse}
+\end{equation}
+donde $\mathrm{AUC}_j$ es el AUC-ROC individual del residual de la $j$-ésima característica sobre validación. Esta ponderación da más peso a las características más discriminantes.
+
+\paragraph{Regularización.} Los AE son vulnerables a aprender la \emph{identidad} si $k$ es grande. Las técnicas de regularización incluyen \emph{dropout} \cite{srivastava2014dropout}, \emph{early stopping}, ruido aditivo en la entrada (\emph{denoising AE} \cite{vincent2008denoising}) y restricciones sobre la activación del \textit{bottleneck} (\emph{sparse AE}).
+
+\subsection{Redes convolucionales 1D}
+
+Una convolución 1D \cite{lecun1989backprop,kim2014convolutional} aplica un filtro de ancho $k$ deslizándolo sobre la secuencia y calculando un producto interno en cada posición:
+\begin{equation}
+y_t = \sum_{i=0}^{k-1} w_i \, x_{t-i} + b.
+\label{eq:conv1d}
+\end{equation}
+La operación es \emph{equivariante a traslación} (un patrón se detecta dondequiera que aparezca) y tiene un \emph{campo receptivo} que crece con la profundidad de la red y los \textit{stride/dilation}. Las redes convolucionales son baratas (compartiendo pesos) y entrenan rápido, lo que las hace atractivas para series temporales largas. \emph{TCN} \cite{bai2018tcn} y la familia derivada (Dilated Convolutions \cite{oord2016wavenet}) son referentes en este espacio.
+
+\subsection{Redes recurrentes y LSTM}
+
+Una \emph{red recurrente} (RNN) procesa la secuencia un elemento cada vez, manteniendo un estado oculto $\bm{h}_t$ que resume el contexto pasado:
+\begin{equation}
+\bm{h}_t = \sigma\!\left( \bm{W}_x \bm{x}_t + \bm{W}_h \bm{h}_{t-1} + \bm{b} \right).
+\label{eq:rnn}
+\end{equation}
+Las RNN clásicas sufren el problema del \emph{gradiente atenuado o explotado} \cite{bengio1994gradient} cuando se entrenan sobre secuencias largas. La \emph{Long Short-Term Memory} (LSTM) \cite{hochreiter1997lstm} introduce un \emph{estado de celda} $\bm{c}_t$ regulado por tres compuertas (olvido $\bm{f}_t$, entrada $\bm{i}_t$, salida $\bm{o}_t$):
+\begin{equation}
+\begin{aligned}
+\bm{f}_t &= \sigma\!\left( \bm{W}_f [\bm{h}_{t-1}, \bm{x}_t] + \bm{b}_f \right), \\
+\bm{i}_t &= \sigma\!\left( \bm{W}_i [\bm{h}_{t-1}, \bm{x}_t] + \bm{b}_i \right), \\
+\tilde{\bm{c}}_t &= \tanh\!\left( \bm{W}_c [\bm{h}_{t-1}, \bm{x}_t] + \bm{b}_c \right), \\
+\bm{c}_t &= \bm{f}_t \odot \bm{c}_{t-1} + \bm{i}_t \odot \tilde{\bm{c}}_t, \\
+\bm{o}_t &= \sigma\!\left( \bm{W}_o [\bm{h}_{t-1}, \bm{x}_t] + \bm{b}_o \right), \\
+\bm{h}_t &= \bm{o}_t \odot \tanh(\bm{c}_t).
+\end{aligned}
+\label{eq:lstm}
+\end{equation}
+Las compuertas permiten que la información se propague durante cientos o miles de pasos sin atenuación, lo que las hace muy adecuadas para series temporales con dependencias de largo plazo. Una alternativa con menos parámetros es la \emph{Gated Recurrent Unit} (GRU) \cite{cho2014gru}.
+
+\section{La arquitectura Transformer}
+\label{sec:teo-transformer}
+
+El \textit{transformer} \cite{vaswani2017attention} se diseñó para procesado de lenguaje, pero ha terminado por colonizar casi cualquier modalidad. La clave de su éxito está en sustituir la recurrencia por el mecanismo de \emph{atención}, lo que le permite acceder a todo el contexto de una vez, paralelizar el entrenamiento y modelar dependencias arbitrariamente largas ---todo ello a costa de un coste cuadrático en la longitud de la secuencia, su principal limitación.
+
+\subsection{Atención de producto escalado}
+
+Dadas tres matrices $\bm{Q}, \bm{K}, \bm{V} \in \mathbb{R}^{L \times d}$ obtenidas por proyección lineal de la secuencia de entrada (\textit{queries}, \textit{keys}, \textit{values}), la atención de producto escalado es
+\begin{equation}
+\mathrm{Att}(\bm{Q}, \bm{K}, \bm{V}) = \mathrm{softmax}\!\left( \frac{\bm{Q} \bm{K}^\top}{\sqrt{d_k}} \right) \bm{V}.
+\label{eq:attention}
+\end{equation}
+Visto a grandes rasgos: cada \textit{token} ---en nuestro caso, cada paso temporal--- \emph{atiende} al resto de la secuencia con un peso aprendido proporcional a la afinidad $\bm{q}_i \cdot \bm{k}_j$. La división por $\sqrt{d_k}$ está ahí para estabilizar el gradiente, y el \emph{softmax} normaliza los pesos para que sumen uno.
+
+\subsection{Atención multi-cabeza}
+
+En lugar de una única proyección $(\bm{Q}, \bm{K}, \bm{V})$, el \textit{transformer} usa $H$ cabezas en paralelo:
+\begin{equation}
+\mathrm{MHA}(\bm{X}) = [\mathrm{Att}_1; \ldots; \mathrm{Att}_H] \bm{W}^O,
+\label{eq:mha}
+\end{equation}
+donde cada cabeza opera en un subespacio de dimensión $d/H$ y $\bm{W}^O$ proyecta la concatenación. Distintas cabezas tienden a especializarse en distintos tipos de relaciones (local, global, periódica), lo cual da al \textit{transformer} su flexibilidad.
+
+\subsection{Codificación posicional}
+
+Como la atención es \emph{invariante al orden}, hay que inyectar información posicional explícita. Dos esquemas habituales:
+\begin{itemize}[leftmargin=*,topsep=0pt]
+  \item \textbf{Sinusoidal} (original \cite{vaswani2017attention}): $PE_{(t, 2k)} = \sin(t / 10000^{2k/d})$, $PE_{(t, 2k+1)} = \cos(t / 10000^{2k/d})$. Permite extrapolar a longitudes no vistas.
+  \item \textbf{Aprendida}: una matriz de \textit{embeddings} de posición entrenable.
+\end{itemize}
+En este TFG (NB08) usamos codificación posicional aprendida.
+
+\subsection{PatchTST: troceado en patches}
+
+Aplicar el \textit{transformer} directamente a una serie de longitud $T$ con cada minuto como un \textit{token} es costoso ---$\mathcal{O}(T^2)$--- y, además, ineficiente: los \textit{tokens} resultantes contienen información puntual y se pierde la estructura local. La propuesta de PatchTST \cite{nie2023patchtst} esquiva el problema troceando la serie en \emph{patches} no solapados de longitud $P$, proyectándolos linealmente al espacio de \textit{embedding} y tratando cada \emph{patch} como un \textit{token}. La longitud efectiva queda dividida por $P$, las dependencias locales se modelan mejor y, empíricamente, los resultados superan a alternativas más complejas como Informer o Autoformer. En el NB08 implementamos una variante ligera, \textit{PatchTST-lite}, con $P=5$ minutos, $d_{\mathrm{model}}=64$, $H=4$ cabezas y $L=2$ bloques.
+
+\section{Aprendizaje supervisado: gradient boosting}
+\label{sec:teo-lgbm}
+
+LightGBM \cite{ke2017lightgbm} es una implementación eficiente de \emph{gradient boosting} sobre árboles de decisión. La idea del \emph{gradient boosting} \cite{friedman2001gbm} es construir un ensemble aditivo
+\begin{equation}
+F_M(\bm{x}) = \sum_{m=1}^{M} \nu \, h_m(\bm{x}),
+\label{eq:boosting}
+\end{equation}
+donde cada $h_m$ es un árbol de decisión \emph{débil} que se entrena para aproximar el gradiente negativo de la pérdida respecto al modelo actual, y $\nu$ es la tasa de aprendizaje. Las dos innovaciones técnicas de LightGBM son (i) la estrategia de crecimiento \emph{leaf-wise} (frente a \emph{level-wise} de XGBoost), que crece el árbol por la hoja con mayor reducción de pérdida, y (ii) el \emph{Gradient-based One-Side Sampling} (GOSS), que submuestrea selectivamente los ejemplos según la magnitud del gradiente. El resultado es un modelo significativamente más rápido para una calidad comparable.
+
+En este TFG LightGBM no es el sistema propuesto ---ese es no supervisado--- sino un \textbf{techo supervisado}: un detector que sí ve etiquetas de ataque durante el entrenamiento y, por tanto, marca el rendimiento máximo que se podría alcanzar con esos datos. Lo usamos como referencia para cuantificar, en la práctica, el coste de prescindir de las etiquetas.
+
+\section{Combinación de modelos: ensembles y stacking}
+\label{sec:teo-stacking}
+
+La idea detrás de cualquier \textit{ensemble} es la misma: si los errores de varios detectores son al menos parcialmente independientes, combinarlos reduce el error global. Hay tres grandes familias para hacerlo. El \textbf{bagging} \cite{breiman1996bagging} entrena el mismo modelo sobre distintos \textit{bootstraps} de los datos y promedia las salidas ---\textit{Random Forest} es su ejemplo canónico. El \textbf{boosting} \cite{freund1996adaboost} entrena modelos en serie, donde cada uno se centra en corregir los errores del anterior; aquí caen LightGBM y XGBoost. Y el \textbf{stacking} \cite{wolpert1992stacked} entrena un \emph{meta-learner} sobre las salidas de varios modelos base para aprender directamente cómo combinarlas.
+
+En este TFG se exploran cuatro variantes de \emph{stacking} (Cap.~\ref{cap:diseno}, NB10):
+\begin{enumerate}[leftmargin=*,topsep=0pt]
+  \item \textbf{Mean blending}: promedio simple de los \textit{scores} estandarizados de los detectores base.
+  \item \textbf{Weighted blending}: suma ponderada con pesos optimizados por búsqueda en rejilla sobre validación.
+  \item \textbf{Meta-Regresión logística}: regresión logística entrenada sobre las puntuaciones de los detectores base, calibradas a probabilidad.
+  \item \textbf{Meta-LightGBM}: un LightGBM ligero (menos hojas, menos profundidad) sobre las mismas puntuaciones, capaz de capturar interacciones no lineales entre detectores.
+\end{enumerate}
+
+El punto metodológicamente delicado del \textit{stacking} es la \textbf{fuga de información}: el meta-learner sólo debería entrenarse con puntuaciones que los detectores base no hayan visto. Aquí lo resolvemos así: los detectores base se entrenan sobre \texttt{train\_clean} (sin ataques) y se evalúan sobre validación, generando \textit{scores}; con esos \textit{scores} de validación se entrena el meta-learner; y la evaluación final se hace en test. De esta forma, ningún detector ve en entrenamiento las muestras que luego le toca puntuar para el siguiente nivel.
+
+\section{Métricas de evaluación}
+\label{sec:teo-metricas}
+
+La elección de métricas es uno de los puntos donde la literatura es más laxa y, paradójicamente, también uno donde un tribunal de TFG suele apretar más. Empecemos por la matriz de confusión:
+
+\begin{table}[H]
+\centering
+\small
+\begin{tabular}{ll cc}
+\toprule
+ & & \multicolumn{2}{c}{\textbf{Real}} \\
+\cmidrule(lr){3-4}
+ & & Ataque ($y=1$) & Normal ($y=0$) \\
+\midrule
+\multirow{2}{*}{\textbf{Pred.}} & Ataque ($\hat y=1$) & TP & FP \\
+                                 & Normal ($\hat y=0$) & FN & TN \\
+\bottomrule
+\end{tabular}
+\caption{Matriz de confusión binaria.}
+\label{tab:cm}
+\end{table}
+
+A partir de la matriz de confusión, las métricas fundamentales son:
+
+\begin{align}
+\text{Precision} &= \frac{TP}{TP + FP}, \label{eq:precision} \\
+\text{Recall} \;(\equiv \mathrm{TPR}) &= \frac{TP}{TP + FN}, \label{eq:recall} \\
+\fone &= 2 \cdot \frac{\text{Precision} \cdot \text{Recall}}{\text{Precision} + \text{Recall}}, \label{eq:f1} \\
+F_\beta &= (1 + \beta^2) \cdot \frac{\text{Precision} \cdot \text{Recall}}{\beta^2 \cdot \text{Precision} + \text{Recall}}. \label{eq:fbeta}
+\end{align}
+
+La métrica $F_\beta$ permite ajustar la importancia relativa de precisión y \textit{recall}. $\ftwo$ ($\beta=2$) penaliza más los falsos negativos, lo que es deseable en seguridad: dejar pasar un ataque es habitualmente peor que disparar una alarma falsa.
+
+\subsection{Curvas ROC y Precision-Recall}
+
+Las predicciones del detector dependen del umbral $\tau$. Variando $\tau$ se obtiene una \emph{curva} en el plano (FPR, TPR) ---la curva ROC--- o en el plano (Recall, Precision) ---la curva PR---. Las áreas bajo esas curvas, $\aucroc$ y $\aucpr$, son métricas independientes del umbral.
+
+La diferencia entre las dos métricas se vuelve crítica en problemas desbalanceados como el nuestro, donde los ataques son alrededor del 16\,\% de las muestras del conjunto de test. En ese régimen, el $\aucroc$ es engañosamente optimista: como mide el ordenamiento global, un detector mediocre con muchos verdaderos negativos triviales puede conseguir un valor alto sin mérito real. El $\aucpr$, en cambio, sí refleja el \emph{trade-off} entre precisión y \textit{recall} en la zona de operación que importa \cite{davis2006relationship,saito2015precision}. Por eso, en este TFG \textbf{$\aucpr$ es la métrica primaria}.
+
+\subsection{Métricas operativas}
+
+Además de las métricas estadísticas, este TFG reporta métricas operativas relevantes para el despliegue:
+\begin{itemize}[leftmargin=*,topsep=0pt]
+  \item \textbf{Latencia de detección}: tiempo (en minutos) entre el inicio del episodio de ataque y la primera detección por el sistema.
+  \item \textbf{Tasa de detección por episodio}: fracción de episodios de ataque en los que el detector dispara al menos una alarma.
+  \item \textbf{Coste por muestra}: tiempo de inferencia por muestra (\si{\milli\second}/\textit{sample}).
+  \item \textbf{Tamaño del modelo}: en \si{\kilo\byte} sobre disco.
+\end{itemize}
+
+\section{SHAP y explicabilidad}
+\label{sec:teo-shap}
+
+Los \emph{valores de Shapley} \cite{shapley1953} surgen de la teoría de juegos cooperativos como una forma justa de repartir el pago de una coalición entre sus miembros. Trasladados a aprendizaje automático \cite{strumbelj2014explaining,lundberg2017shap}, los valores SHAP atribuyen a cada característica $j$ una contribución $\phi_j$ a la diferencia entre la predicción del modelo y el valor esperado:
+\begin{equation}
+f(\bm{x}) = \mathbb{E}[f(\bm{X})] + \sum_{j=1}^{d} \phi_j(\bm{x}).
+\label{eq:shap}
+\end{equation}
+
+Las propiedades teóricas que cumplen ---eficiencia, simetría, no-monotonía, aditividad--- son las que convirtieron a los valores SHAP en la atribución de referencia. El cálculo exacto es exponencial en el número de características, lo que en principio sería un freno; afortunadamente, \textit{TreeExplainer} \cite{lundberg2020fromlocal} reduce el coste a tiempo polinómico para modelos basados en árboles (LightGBM, XGBoost). Para modelos arbitrarios queda \textit{KernelExplainer}, que ofrece una aproximación basada en muestreo.
+
+Nosotros aplicamos SHAP a dos modelos: LightGBM, donde \textit{TreeExplainer} permite el cálculo exacto, y el mejor autoencoder, aproximando con \textit{KernelExplainer} sobre un subconjunto representativo. Toda la discusión está en el \cref{sec:resultados-shap}.
+
+\section{Fundamentos de la ampliación: generativos, privacidad, robustez y compresión}
+\label{sec:teo-ampliacion}
+
+Esta sección reúne los fundamentos formales de las técnicas de frontera incorporadas en la ampliación (\cref{sec:resultados-ampliacion}).
+
+\subsection{Autoencoder variacional (VAE)}
+\label{sec:teo-vae}
+El VAE \cite{kingma2014vae} sustituye el latente determinista del autoencoder por una distribución $q_\phi(\bm z\mid\bm x)=\mathcal N(\bm\mu_\phi(\bm x),\bm\sigma^2_\phi(\bm x))$. Se entrena maximizando la cota inferior de la evidencia (ELBO):
+\begin{equation}
+\mathcal L(\bm x)=\underbrace{\mathbb E_{q_\phi(\bm z\mid\bm x)}[\log p_\theta(\bm x\mid\bm z)]}_{\text{reconstrucción}}-\beta\,\underbrace{D_{\mathrm{KL}}\!\big(q_\phi(\bm z\mid\bm x)\,\|\,p(\bm z)\big)}_{\text{regularización}},
+\label{eq:elbo}
+\end{equation}
+con $p(\bm z)=\mathcal N(\bm 0,\bm I)$ y el coeficiente $\beta$ del $\beta$-VAE \cite{higgins2017betavae}. El muestreo se hace diferenciable con el \emph{truco de reparametrización} $\bm z=\bm\mu+\bm\sigma\odot\bm\epsilon$, $\bm\epsilon\sim\mathcal N(\bm 0,\bm I)$. Como \textit{score} de anomalía usamos la \emph{probabilidad de reconstrucción} \cite{an2015reconstruction}: se toman $L$ muestras del latente y se promedia el error de reconstrucción; su media es el \textit{score} y su desviación típica, una medida de \textbf{incertidumbre} por alarma.
+
+\subsection{Modelos de difusión (DDPM)}
+\label{sec:teo-ddpm}
+Un DDPM \cite{ho2020ddpm} define un proceso directo que añade ruido gaussiano en $T$ pasos, $q(\bm x_t\mid\bm x_{t-1})=\mathcal N(\sqrt{1-\beta_t}\,\bm x_{t-1},\beta_t\bm I)$, con la forma cerrada
+\begin{equation}
+\bm x_t=\sqrt{\bar\alpha_t}\,\bm x_0+\sqrt{1-\bar\alpha_t}\,\bm\epsilon,\qquad \bar\alpha_t=\textstyle\prod_{s=1}^{t}(1-\beta_s).
+\label{eq:ddpm_forward}
+\end{equation}
+Una red $\bm\epsilon_\theta(\bm x_t,t)$ aprende a predecir el ruido minimizando $\mathbb E_{t,\bm x_0,\bm\epsilon}\big[\lVert\bm\epsilon-\bm\epsilon_\theta(\bm x_t,t)\rVert^2\big]$; el muestreo invierte el proceso. Entrenado sobre consumo limpio, sirve para \emph{sintetizar} trazas realistas y, vía \emph{denoising} parcial \cite{wyatt2022anoddpm}, como detector generativo.
+
+\subsection{Aprendizaje federado y privacidad diferencial}
+\label{sec:teo-feddp}
+\textbf{FedAvg} \cite{mcmahan2017fedavg} agrega los modelos locales de $K$ clientes ponderando por su número de muestras: $\bm w_{t+1}=\sum_{k=1}^{K}\frac{n_k}{n}\,\bm w_t^{k}$, sin que los datos crudos abandonen el cliente. La \textbf{privacidad diferencial} \cite{dwork2014dp} garantiza que un mecanismo $\mathcal M$ es $(\varepsilon,\delta)$-DP si para conjuntos vecinos $D,D'$ y todo evento $S$:
+\begin{equation}
+\Pr[\mathcal M(D)\in S]\le e^{\varepsilon}\Pr[\mathcal M(D')\in S]+\delta.
+\label{eq:dp}
+\end{equation}
+\textbf{DP-SGD} \cite{abadi2016dpsgd} lo logra recortando la norma de cada gradiente por-ejemplo a $C$ y añadiendo ruido $\mathcal N(0,(\sigma C)^2)$. El presupuesto $\varepsilon$ se contabiliza con \emph{Rényi DP} \cite{mironov2017rdp}: para el mecanismo gaussiano submuestreado con tasa $q$ y orden $\alpha$ \cite{mironov2019sgm},
+\begin{equation}
+\varepsilon_{\mathrm{RDP}}(\alpha)=\frac{1}{\alpha-1}\log\sum_{k=0}^{\alpha}\binom{\alpha}{k}(1-q)^{\alpha-k}q^{k}\,e^{\frac{k^2-k}{2\sigma^2}},
+\label{eq:rdp}
+\end{equation}
+componible sobre $T$ pasos y convertible a $(\varepsilon,\delta)$ mediante $\varepsilon=\min_\alpha[\,T\,\varepsilon_{\mathrm{RDP}}(\alpha)+\log(1/\delta)/(\alpha-1)\,]$.
+
+\subsection{Robustez adversaria}
+\label{sec:teo-adv}
+Un ataque de gradiente busca una perturbación $\bm\delta$ acotada ($\lVert\bm\delta\rVert_\infty\le\epsilon$) que altere el \textit{score} del detector $s(\bm x)$. \textbf{FGSM} \cite{goodfellow2014fgsm} da un paso, $\bm x'=\bm x+\epsilon\,\mathrm{sign}(\nabla_{\bm x}s)$; \textbf{PGD} \cite{madry2018pgd} lo itera proyectando a la bola $\ell_\infty$; y \textbf{C\&W} \cite{carlini2017cw} optimiza $\min_{\bm\delta}\;\lVert\bm\delta\rVert_2+c\cdot s(\bm x+\bm\delta)$. La defensa de referencia, el \emph{adversarial training}, resuelve el problema min-max $\min_\theta\mathbb E[\max_{\lVert\bm\delta\rVert\le\epsilon}\mathcal L(\bm x+\bm\delta;\theta)]$.
+
+\subsection{Cuantización y pruning}
+\label{sec:teo-comp}
+La \textbf{cuantización afín} \cite{jacob2018quantization} mapea un peso real $w$ a un entero $q=\mathrm{round}(w/s)+z$ con escala $s$ y punto cero $z$, reduciendo de 32 a 8 bits (o menos). El \textbf{\textit{pruning}} por magnitud \cite{han2016deepcompression} anula los pesos de menor valor absoluto; el modelo resultante, disperso, comprime mucho mejor. Ambas técnicas se aplican \emph{post-entrenamiento} con pérdida marginal de precisión, claves para el despliegue \textit{edge}.

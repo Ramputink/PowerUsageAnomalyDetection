@@ -1,0 +1,130 @@
+% ─────────────────────────────────────────────────────────────────────
+%  Capítulo 2 — Estado del arte
+% ─────────────────────────────────────────────────────────────────────
+\chapter{Estado del arte}
+\label{cap:estado}
+
+Este capítulo recorre la literatura que da contexto al trabajo, agrupada en cinco bloques: ciberseguridad de las redes eléctricas inteligentes (\cref{sec:soa-cyber}), detección de anomalías en consumo eléctrico (\cref{sec:soa-ad}), simulación y taxonomías de ataques FDI (\cref{sec:soa-fdi}), explicabilidad y despliegue en el \textit{edge} (\cref{sec:soa-xai-edge}) y, ya como cierre, el posicionamiento del TFG frente a lo publicado (\cref{sec:soa-brecha}). La intención no es enumerar artículos uno detrás de otro, sino construir un argumento que justifique para qué sirve este trabajo.
+
+\section{Ciberseguridad en redes eléctricas inteligentes}
+\label{sec:soa-cyber}
+
+Que la red eléctrica se haya convertido en un sistema ciberfísico ha generado una literatura abundante sobre amenazas y contramedidas. Una de las referencias más citadas es el trabajo de Mo \emph{et al.} \cite{mo2012cyberphysical}, que organiza el panorama según la clásica triada CIA aplicada al dominio eléctrico. Por el lado de la \textbf{confidencialidad}, el dato de consumo es información personal sensible: revela presencia, uso de electrodomésticos y patrones laborales, y existen técnicas bien documentadas para re-identificar usuarios a partir de su serie temporal \cite{molina2010private}. La \textbf{integridad} es el flanco donde encajan los ataques FDI, los más estudiados desde el clásico de Liu \emph{et al.} \cite{liu2009fdi}: un atacante con acceso a la matriz Jacobiana del estimador de estado puede construir vectores de ataque que pasan inadvertidos para los detectores chi-cuadrado basados en residuales. La \textbf{disponibilidad}, finalmente, cubre todo el repertorio clásico ---DoS sobre canales de comunicación, \textit{jamming} de PLC o WiFi, agotamiento de batería en contadores remotos--- recogido en revisiones como la de McLaughlin \emph{et al.} \cite{mclaughlin2016cybersecurity}.
+
+Revisiones más recientes y específicas del plano de medida \cite{mehrdad2018cybersecurity,liang2017review} reagrupan los FDI domésticos en tres subclases con relevancia operativa: \emph{ataques de pillaje} (recortar selectivamente las lecturas), \emph{ataques de duplicación} (clonar las lecturas de otros usuarios) y \emph{ataques físicos} sobre el hardware del propio contador. Conviene separar dos problemas que a veces se confunden: el FDI a nivel de transporte se ataca con modelos del estimador de estado, pero a nivel residencial ese estimador no existe ---no hay observabilidad suficiente---, así que la única vía es el análisis estadístico y de patrones de la serie temporal. Ese es exactamente el terreno en el que se mueve este TFG.
+
+Conviene detenerse en el concepto de \textbf{sistema ciberfísico}, porque está detrás de una de las decisiones de diseño más importantes del trabajo. El plano físico (potencia, tensión, corriente) y el plano cibernético (las medidas que llegan al operador) están acoplados por las leyes de la electricidad: la potencia activa reportada y la implícita por $V\cdot I$ deben coincidir, salvo pequeñas pérdidas resistivas. Si el atacante manipula la potencia pero no controla la corriente, esa invariante se rompe \cite{ahmad2025aif}. Sobre esta idea construimos la \textit{feature} $\vires$, una traslación al ámbito doméstico de la explotación de invariantes físicas que Pan \emph{et al.} \cite{pan2015fdi} ya ensayaron a nivel de transporte.
+
+\section{Detección de anomalías en consumo eléctrico}
+\label{sec:soa-ad}
+
+La detección de anomalías en consumo eléctrico es un campo amplio, que abarca desde la detección de fallos en equipamiento hasta la detección de fraude. La revisión sistemática de Himeur \emph{et al.} \cite{himeur2021review} es una de las más completas y recientes, y organiza la literatura según paradigma de aprendizaje, nivel de detección, plataforma de cómputo y tratamiento de la privacidad. Leyéndola de forma crítica, los métodos se acaban agrupando en cuatro grandes familias.
+
+\subsection{Métodos estadísticos y basados en reglas}
+
+Son la base histórica del campo y siguen presentes en producción por su simplicidad e interpretabilidad. Caben aquí el control estadístico de procesos (\textit{control charts}, CUSUM, EWMA), los modelos ARIMA y SARIMA \cite{deboeck2007arima} y los umbrales fijos sobre características derivadas. La ventaja es evidente: no necesitan entrenamiento intensivo, no exigen etiquetas y son fáciles de auditar. La contrapartida también lo es: no capturan patrones temporales complejos ni interacciones entre variables. Hudani \emph{et al.} \cite{hudani2023realtime} demuestran que un sistema híbrido entre reglas y aprendizaje en línea puede operar en tiempo real con baja latencia, pero a costa de un \emph{tuning} cuidadoso por dominio.
+
+\subsection{Aprendizaje automático clásico}
+
+El salto cualitativo llega con el aprendizaje no supervisado clásico. El \textit{Isolation Forest}, propuesto por Liu \emph{et al.} \cite{liu2008isolation,liu2012iforest}, parte de una idea sencilla: las muestras anómalas, al ser raras y distintas, se aíslan con menos particiones aleatorias que las normales. Tiene pocos hiperparámetros, es paralelizable y resulta extraordinariamente rápido, lo que explica su popularidad como \textit{baseline}. Junto a él aparecen alternativas con propiedades complementarias: \textit{Local Outlier Factor} \cite{breunig2000lof}, que compara la densidad local de un punto con la de sus vecinos, y \textit{One-Class SVM} \cite{scholkopf2001ocsvm}, que aprende una frontera no lineal alrededor del conjunto normal usando núcleos.
+
+El \textit{clustering} también ha jugado un papel doble en el campo: puede usarse de forma directa ---los puntos lejanos al centroide más próximo son sospechosos--- o como pre-procesado para entrenar detectores especializados por régimen, idea que recuperamos en nuestro detector híbrido K-Means+IF (NB03b). Vale la pena señalar el trabajo de Saglam \cite{saglam2023ml}, que compara cuatro detectores clásicos sobre series de consumo y concluye que el rendimiento depende casi por completo del preprocesado y de la calibración del umbral; nuestros experimentos confirman esa observación.
+
+\subsection{Aprendizaje profundo}
+
+Los \textit{autoencoders} son hoy el caballo de batalla de la detección no supervisada. La idea, que se remonta a Hinton y Salakhutdinov \cite{hinton2006reducing}, es sencilla: se entrena una red a reconstruir su propia entrada pasándola por un cuello de botella estrecho; lo que sale mal reconstruido es candidato a anomalía. Aplicado al consumo eléctrico, el paradigma ha generado un volumen creciente de propuestas, que conviene desglosar por arquitectura.
+
+\paragraph{Autoencoders densos.} Castangia \emph{et al.} \cite{castangia2022density} aplican un AE denso al propio dataset UCI con resultados competitivos sin recurrir a etiquetas. Una variante interesante es la de Pereira y Silveira \cite{pereira2018unsupervised}, que usa autoencoders variacionales (VAE) para acompañar la detección con una medida de incertidumbre, algo especialmente útil cuando la alarma va a un operador humano.
+
+\paragraph{Autoencoders recurrentes.} Las LSTM \cite{hochreiter1997lstm} ---y sus AE asociados--- encajan bien con las series temporales porque están pensadas para modelar dependencias largas. Malhotra \emph{et al.} \cite{malhotra2016lstmae} fueron quienes popularizaron el LSTM-AE para detección de anomalías, y trabajos posteriores como los de Pal \emph{et al.} \cite{pal2023lstm} o Mehedi \emph{et al.} \cite{mehedi2024gruae} confirman su utilidad tanto en consumo residencial como industrial.
+
+\paragraph{Autoencoders convolucionales.} La convolución 1D aporta un sesgo inductivo temporal ---detecta patrones locales y es invariante a traslación--- con un coste de cómputo inferior al de la recurrencia. Un exponente clásico es \textit{DeepAnT} \cite{munir2018deepant}, una arquitectura convolucional que pronostica el siguiente valor y detecta anomalías por residual.
+
+\paragraph{Transformers para series temporales.} Aquí está la frontera actual del campo. El \textit{transformer} de Vaswani \emph{et al.} \cite{vaswani2017attention}, que arrasó en PLN en 2017, ha tardado más en aterrizar en series temporales porque la atención cuadrática es cara para secuencias largas. Sucesivas propuestas han ido buscando alternativas viables: \textit{Informer} \cite{zhou2021informer}, \textit{Autoformer} \cite{wu2021autoformer}, \textit{Anomaly Transformer} \cite{xu2022anomaly}, \textit{PatchTST} \cite{nie2023patchtst}, \textit{TimesNet} \cite{wu2023timesnet} e \textit{iTransformer} \cite{liu2024itransformer}. PatchTST merece mención aparte: su idea es trocear la serie en \textit{patches} y tratarlos como \textit{tokens}, lo que reduce drásticamente el coste y captura mejor las dependencias locales. Es la idea de \textit{patching} la que adoptamos en nuestro detector basado en \textit{transformer} (NB08).
+
+\subsection{Detección de fraude (NTL) y trabajos aplicados a contadores}
+
+Existe un subcampo específico, el de las \emph{pérdidas no técnicas} (NTL) y el robo de electricidad, que es metodológicamente distinto al nuestro por una razón principal: ahí sí suele haber etiquetas. La fuente más usada son los datasets de la \textit{State Grid Corporation of China}, publicados en sucesivos \textit{challenges} y reutilizados ampliamente desde entonces \cite{zheng2018wide}. Buzau \emph{et al.} \cite{buzau2020hybrid} son un buen ejemplo: combinan mediciones y datos sociodemográficos para enriquecer la señal. La diferencia clave con nuestro problema no está en el método sino en el horizonte: el NTL se evalúa a nivel de \emph{cliente} ---¿este cliente es fraudulento?---, mientras que nosotros respondemos a nivel de \emph{minuto} ---¿este minuto contiene un ataque?---, lo que cambia tanto las métricas como los modelos.
+
+\begin{table}[H]
+\centering
+\caption{Comparación esquemática de trabajos previos sobre detección de anomalías en consumo eléctrico y series temporales relacionadas. Ordenados cronológicamente.}
+\label{tab:soa}
+\footnotesize
+\begin{tabularx}{\textwidth}{l X l l l}
+\toprule
+Ref. & Dataset & Tipo & Método & Métrica reportada \\
+\midrule
+Liu 2008 \cite{liu2008isolation}              & Sintético + KDD       & \textit{Outlier} puntual    & \textit{Isolation Forest}          & AUC-ROC 0{,}93--0{,}98 \\
+Malhotra 2016 \cite{malhotra2016lstmae}       & Power demand          & Anomalía colectiva          & LSTM-AE                            & $\fone$ 0{,}81 \\
+Jokar 2016 \cite{jokar2016electricity}        & Irlanda CER trial     & Robo electricidad           & SVM + reglas                       & TPR 0{,}94 / FPR 0{,}11 \\
+Pereira 2018 (VAE) \cite{pereira2018unsupervised} & Solar PV power     & Residencial                 & Variational AE                     & $\fone$ 0{,}79 + incertidumbre \\
+Munir 2018 (DeepAnT) \cite{munir2018deepant}  & NAB benchmark         & Contextual                  & CNN + residual                     & Precision 0{,}88 / Recall 0{,}77 \\
+Buzau 2020 \cite{buzau2020hybrid}             & Endesa NTL            & Fraude                      & XGBoost + ANN                      & ROC-AUC 0{,}95 \\
+Castangia 2022 \cite{castangia2022density}    & UCI Power             & Hogar                       & AE denso                           & $\fone$ $\sim$0{,}86 \\
+Xu 2022 (Anomaly Tr.) \cite{xu2022anomaly}    & MSL, SMD, SWaT        & Multivariante               & Transformer + assoc.\ disc.        & $\fone$ 0{,}92--0{,}95 \\
+Nie 2023 (PatchTST) \cite{nie2023patchtst}    & ETT, Electricity      & \textit{Forecast} / AD      & Transformer \emph{patched}         & MSE / $\fone$ SOTA \\
+Saglam 2023 \cite{saglam2023ml}               & Consumo eléctrico ind.& Industrial                  & IF / OCSVM / LOF comparados        & $\fone$ 0{,}71--0{,}83 \\
+Mehedi 2024 \cite{mehedi2024gruae}            & UCI + propio          & Hogar / FDI                 & GRU-AE                             & $\fone$ 0{,}88 \\
+Ahmad 2025 (AIF) \cite{ahmad2025aif}          & Sintético AMI         & FDI                         & AE + MLP + invariantes físicas     & $\fone$ 0{,}92 \\
+\midrule
+\multicolumn{5}{l}{\footnotesize\textbf{Este TFG}: UCI Power + 7 ataques FDI sintéticos · 8 detectores comparados · $\fone$ 0{,}82 (no superv.) / 0{,}91 (techo)} \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\section{Ataques FDI: taxonomías y simulación}
+\label{sec:soa-fdi}
+
+Al no haber datasets públicos con FDI reales etiquetados sobre contadores domésticos, la práctica habitual ---y aceptable, siempre que los ataques sean plausibles y estén bien documentados--- es simularlos sobre datos limpios. La literatura ofrece al menos tres taxonomías complementarias, según se mire el mecanismo de manipulación, el objetivo del atacante o sus capacidades. Por mecanismo aparecen el escalado multiplicativo, el desplazamiento aditivo, la inyección de ruido, la manipulación temporal (\textit{ramp}, \textit{step}) o la repetición de tramos históricos (\textit{replay}) \cite{jokar2016electricity,buzau2018detection}. Por objetivo, reducción de factura, ocultación de actividad ilícita o sabotaje de infraestructura \cite{messinis2018review}. Y por capacidad, atacantes oportunistas (sin modelo del detector), informados o adaptativos con acceso \textit{black-box} \cite{shokri2017membership,kos2018adversarial}.
+
+Este TFG combina las dos primeras al agrupar sus siete tipos de ataque en cuatro categorías mecánicas (magnitud, temporal, patrón, físico) con tres niveles de severidad calibrados por argumento económico. La tercera ---la taxonomía por capacidad--- aparece más adelante, en el \cref{sec:resultados-adversarial}, para evaluar la robustez frente a atacantes que conocen el detector.
+
+Hay un punto adicional sobre el que conviene insistir: la \emph{plausibilidad} del banco de ataques no es un detalle cosmético. Cuando los ataques simulados son demasiado burdos, los detectores rinden muy bien sobre el papel pero ese rendimiento no se sostiene en producción. Por eso, en el \cref{cap:datos} dedicamos espacio a justificar los rangos de severidad desde la rentabilidad económica del fraude: un atacante racional no se arriesga a una detección por un ahorro marginal del 5\,\%; el rango realmente rentable, según la literatura sobre sectores fraudulentos, está entre el 15 y el 50\,\% \cite{messinis2018review}.
+
+\section{Explicabilidad y despliegue en el edge}
+\label{sec:soa-xai-edge}
+
+\subsection{Explicabilidad (XAI) en detección energética}
+
+La inteligencia artificial explicable (XAI) ha dejado de ser un campo de nicho para convertirse en un requisito regulatorio. En infraestructura crítica esto va más allá del lujo: un operador no actúa sobre una alarma si no sabe por qué se ha disparado. La pieza central del marco es SHAP (\textit{SHapley Additive exPlanations}), que Lundberg y Lee \cite{lundberg2017shap} formalizaron sobre los valores de Shapley de la teoría de juegos cooperativos, dotando a las atribuciones de propiedades teóricas deseables como la eficiencia, la simetría o la aditividad. La aplicación práctica se ve facilitada por \textit{TreeExplainer} \cite{lundberg2020fromlocal}, que calcula los SHAP exactos en árboles (LightGBM, XGBoost) en tiempo polinómico, lo que los hace operativamente viables.
+
+En el ámbito de la detección de anomalías, Mahbooba \emph{et al.} \cite{mahbooba2021xai} aplican LIME y SHAP a modelos de detección de intrusión, y Tang \emph{et al.} \cite{tang2024xaienergy} llevan SHAP al contexto energético con detectores de anomalías de consumo. Nuestro enfoque sigue una línea parecida: aplicamos SHAP al detector supervisado (LightGBM) y al mejor autoencoder, y contrastamos las explicaciones con la intuición física. Que SHAP señale a $\vires$ como característica clave en los ataques de manipulación de tensión es, en ese sentido, una validación cruzada tanto del modelo como del propio banco de ataques.
+
+\subsection{Edge computing para AMI}
+
+Llevar la inteligencia al borde de la red ---el llamado \textit{edge}--- es uno de los pilares de la \textit{smart grid} actual \cite{shi2016edge,oliveira2021edge}. Las razones para hacerlo se acumulan: el dato sensible no sale del contador (privacidad), la latencia se reduce porque desaparece el viaje a la nube, el sistema se vuelve más resiliente ante caídas de comunicaciones y, al final, el centro de datos se descarga. Ahora bien, los contadores y concentradores son dispositivos pequeños: décimas o unidades de MB de memoria, CPUs ARM de bajo consumo y, casi siempre, sin GPU. Un modelo de cientos de MB no entra; uno de decenas o pocos centenares de kB sí.
+
+Para conseguir modelos de \textit{deep learning} compatibles con esas restricciones, la receta habitual combina tres ingredientes: arquitecturas ligeras con pocos parámetros, cuantización a 8 o 4 bits y \textit{pruning} estructurado. TinyAnomaly \cite{nguyen2023tiny} es un buen ejemplo: detección de anomalías por debajo de 100 kB sobre microcontroladores ARM Cortex-M. La estrategia que seguimos en este TFG es ligeramente distinta: en lugar de comprimir a posteriori, diseñamos los modelos para que ya nazcan pequeños (Dense-AE $\sim$130 kB, CNN-AE $\sim$200 kB, LSTM-AE $\sim$740 kB), de modo que la viabilidad de despliegue es inmediata.
+
+\section{Fronteras recientes: modelos generativos, aprendizaje distribuido y robustez}
+\label{sec:soa-fronteras}
+
+El estado del arte 2023--2025 ha desplazado el foco desde \emph{qué arquitectura reconstruye mejor} hacia cuatro ejes que un detector desplegable en infraestructura crítica no puede ignorar: la cuantificación de la incertidumbre, la síntesis generativa de datos, la privacidad del entrenamiento distribuido y la robustez frente a atacantes informados. Estos cuatro frentes vertebran la ampliación de este trabajo (\cref{sec:resultados-ampliacion}).
+
+\subsection{Modelos generativos: del autoencoder variacional a la difusión}
+
+El \textbf{autoencoder variacional} (VAE) de Kingma y Welling \cite{kingma2014vae} introduce un cuello de botella \emph{probabilístico}: en lugar de un punto latente, el codificador produce una distribución, lo que permite muestrear y, sobre todo, estimar la incertidumbre de cada reconstrucción. An y Cho \cite{an2015reconstruction} formalizan la \emph{probabilidad de reconstrucción} como \textit{score} de anomalía, que dota a cada alarma de una banda de confianza ---justo lo que Pereira y Silveira \cite{pereira2018unsupervised} ya señalaban como deseable para el operador humano---. El \textit{$\beta$-VAE} \cite{higgins2017betavae} regula el peso del término de divergencia para controlar la estructura del espacio latente.
+
+Un paso más allá están los \textbf{modelos de difusión} (DDPM, Ho \emph{et al.} \cite{ho2020ddpm}), que aprenden a invertir un proceso de ruido gaussiano gradual y se han convertido en el estado del arte generativo. En series temporales destacan \textit{TimeGrad} \cite{rasul2021timegrad} y \textit{CSDI} \cite{tashiro2021csdi}, que generan trazas realistas condicionadas; y como detectores, \textit{AnoDDPM} \cite{wyatt2022anoddpm} explota el error de \emph{denoising} parcial para señalar anomalías. Su relevancia para este trabajo es doble: permiten sintetizar ataques sobre portadoras de consumo \emph{generadas} ---no copiadas de los datos--- y ofrecen una familia de detección alternativa a la reconstrucción.
+
+\subsection{Aprendizaje federado y privacidad diferencial}
+
+Centralizar las series de consumo de millones de hogares es indeseable (privacidad) e inviable (ancho de banda). El \textbf{\textit{federated learning}} (FedAvg, McMahan \emph{et al.} \cite{mcmahan2017fedavg}) entrena un modelo compartido intercambiando solo \emph{pesos}, nunca datos crudos; su aplicación a la \textit{smart grid} está revisada en Briggs \emph{et al.} \cite{briggs2020federated} y Li \emph{et al.} \cite{li2021federated}. Como los pesos pueden filtrar información (ataques de inferencia de pertenencia, Shokri \emph{et al.} \cite{shokri2017membership}), se combina con \textbf{privacidad diferencial}: el marco formal de Dwork y Roth \cite{dwork2014dp} y su instanciación práctica \textbf{DP-SGD} \cite{abadi2016dpsgd}, que recorta y ruidifica los gradientes. La contabilidad ajustada del presupuesto $\varepsilon$ se realiza hoy mediante \emph{Rényi Differential Privacy} \cite{mironov2017rdp} y su extensión al mecanismo gaussiano submuestreado \cite{mironov2019sgm}. Este eje conecta directamente con el marco regulador del \cref{cap:regulador}.
+
+\subsection{Robustez adversaria frente a atacantes de gradiente}
+
+La taxonomía por capacidad del \cref{sec:soa-fdi} culmina en el atacante de \emph{caja blanca} que conoce el detector. Frente a él, la búsqueda en rejilla es una amenaza débil: el estándar son los ataques basados en gradiente ---FGSM \cite{goodfellow2014fgsm}, PGD \cite{madry2018pgd} y la optimización con penalización $\ell_2$ de Carlini y Wagner \cite{carlini2017cw}---, ya ensayados sobre detectores energéticos por Chen \emph{et al.} \cite{chen2018adversarial} y Kos \emph{et al.} \cite{kos2018adversarial}. La defensa de referencia es el \emph{adversarial training} \cite{madry2018pgd}, y un argumento recurrente es que los \emph{ensembles} encarecen la evasión al exigir transferir el ataque entre modelos de gradientes distintos.
+
+\subsection{Compresión de modelos para el edge}
+
+Más allá de diseñar redes pequeñas, la receta madura combina \textbf{cuantización} a 8/4 bits \cite{jacob2018quantization} y \textbf{\textit{pruning}} con compresión \cite{han2016deepcompression}, que reducen el \textit{footprint} varios factores con pérdida marginal de precisión. Esto convierte la promesa \emph{edge-viable} en una medida cuantificable de tamaño, latencia y energía, evaluable incluso sobre TFLite-Micro en microcontroladores \cite{nguyen2023tiny}.
+
+\section{Posicionamiento del trabajo y brecha identificada}
+\label{sec:soa-brecha}
+
+Releyendo la literatura con la pregunta de qué falta por hacer, aparecen cinco huecos concretos que este TFG intenta cubrir. El primero es metodológico: la mayoría de los trabajos comparan dos o tres modelos sobre datasets propios y métricas que no casan, lo que dificulta extraer conclusiones generales; aquí ponemos ocho detectores ---del \textit{Isolation Forest} a un \textit{transformer}--- a pelear sobre el mismo dataset, el mismo banco de ataques y el mismo protocolo. El segundo es la robustez frente a atacantes adaptativos: salvo excepciones como Chen \emph{et al.} \cite{chen2018adversarial}, la literatura asume atacantes oportunistas, mientras que nosotros evaluamos qué pasa cuando el atacante conoce el detector y se calibra a la frontera de detección.
+
+A esto se añaden tres ejes que suelen quedar fuera. La explicabilidad operativa, donde SHAP no se usa solo para visualizar bonito sino para comprobar que las características clave del modelo coinciden con las que la física del problema señalaría. La generalización a otro dominio, que evaluamos sobre UK-DALE midiendo (sin maquillar) la caída de rendimiento. Y la viabilidad de despliegue en el \textit{edge}, que reportamos junto al AUC-PR con tamaño, latencia y coste por muestra, de manera que la elección de qué desplegar deja de ser una decisión de un solo número.
+
+Esta combinación ---comparación amplia, robustez adversaria, explicabilidad, generalización y \textit{edge}--- no es habitual en la literatura, y es lo que constituye la aportación principal del trabajo.

@@ -1,0 +1,309 @@
+%----------
+%   IMPORTANTE
+%----------
+% Plantilla oficial UC3M (estilo IEEE) rellenada con el contenido real del TFG.
+% Se conserva el preambulo oficial (pdflatex + pdfx PDF/A-1b + txfonts +
+% biblatex-ieee/biber + titlesec + estilos de tabla/figura). Se anaden solo los
+% paquetes que el contenido necesita, todos compatibles con pdflatex. Copia de
+% seguridad del placeholder oficial en memoria_PLANTILLA_ORIGINAL.tex.
+
+%----------
+%	CONFIGURACION DEL DOCUMENTO
+%----------
+\documentclass[12pt]{report}
+
+\usepackage[a4paper, vmargin=2.5cm, hmargin=3cm]{geometry}
+\renewcommand{\baselinestretch}{1.15}
+\parskip=6pt
+
+\usepackage[table]{xcolor}
+\definecolor{azulUC3M}{RGB}{0,0,102}
+\definecolor{gray97}{gray}{.97}
+\definecolor{gray75}{gray}{.75}
+\definecolor{gray45}{gray}{.45}
+
+% PDF/A para e-Archivo (metadatos en output.xmpdata)
+\usepackage[a-1b]{pdfx}
+
+\usepackage{hyperref}
+\hypersetup{colorlinks=true, linkcolor=black, urlcolor=blue}
+
+% MATEMATICAS
+\usepackage{amsmath,amssymb,amsfonts,amsthm}
+\usepackage{mathtools}
+\usepackage{bm}
+
+% Codificacion
+\usepackage{txfonts}
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+
+% Idioma
+\usepackage[spanish, es-tabla]{babel}
+\usepackage[babel, spanish=spanish]{csquotes}
+\AtBeginEnvironment{quote}{\small}
+
+% Pie de pagina
+\usepackage{fancyhdr}
+\pagestyle{fancy}
+\fancyhf{}
+\renewcommand{\headrulewidth}{0pt}
+\rfoot{\thepage}
+\fancypagestyle{plain}{\pagestyle{fancy}}
+
+% Titulos (titlesec/titletoc)
+\usepackage{titlesec}
+\usepackage{titletoc}
+\titleformat{\chapter}[block]
+{\large\bfseries\filcenter}{\thechapter.}{5pt}{\MakeUppercase}{}
+\titlespacing{\chapter}{0pt}{0pt}{*3}
+\titlecontents{chapter}[0pt]{}
+{\contentsmargin{0pt}\thecontentslabel.\enspace\uppercase}
+{\contentsmargin{0pt}\uppercase}{\titlerule*[.7pc]{.}\contentspage}
+\titleformat{\section}{\bfseries}{\thesection.}{5pt}{}
+\titlecontents{section}[5pt]{}
+{\contentsmargin{0pt}\thecontentslabel.\enspace}
+{\contentsmargin{0pt}}{\titlerule*[.7pc]{.}\contentspage}
+\titleformat{\subsection}{\normalsize\bfseries}{\thesubsection.}{5pt}{}
+\titlecontents{subsection}[10pt]{}
+{\contentsmargin{0pt}\thecontentslabel.\enspace}
+{\contentsmargin{0pt}}{\titlerule*[.7pc]{.}\contentspage}
+
+% TABLAS
+\usepackage{multirow}
+\usepackage{caption}
+\usepackage{subcaption}
+\usepackage{floatrow}
+\usepackage{array}
+\usepackage{booktabs}
+\usepackage{tabularx}
+\usepackage{longtable}
+\usepackage{float}
+\newcolumntype{P}[1]{>{\centering\arraybackslash}p{#1}}
+\DeclareCaptionFormat{upper}{#1#2\uppercase{#3}\par}
+\captionsetup*[table]{format=upper, name=TABLA, justification=centering,
+	labelsep=period, width=.75\linewidth, labelfont=small, font=small}
+
+% FIGURAS
+\usepackage{graphicx}
+\graphicspath{{imagenes/}{../memoria_latex/figures/}{../UCIrvine/figures/}}
+\captionsetup[figure]{format=hang, name=Fig., singlelinecheck=off,
+	labelsep=period, labelfont=small, font=small}
+
+% LISTAS, SI, EURO, ALGORITMOS, TikZ
+\usepackage{enumitem}
+\usepackage{siunitx}
+\sisetup{output-decimal-marker={,},group-separator={\,}}
+\usepackage{eurosym}
+\usepackage{algorithm}
+\usepackage{algpseudocode}
+\usepackage{tikz}
+\usetikzlibrary{arrows.meta,positioning,shapes.geometric,calc,patterns}
+
+% NOTAS AL PIE
+\usepackage{chngcntr}
+\counterwithout{footnote}{chapter}
+
+% LISTADOS DE CODIGO
+\usepackage{listings}
+\lstdefinestyle{estilo}{ frame=Ltb, framerule=0pt, aboveskip=0.5cm,
+	framextopmargin=3pt, framexbottommargin=3pt, framexleftmargin=0.4cm,
+	framesep=0pt, rulesep=.4pt, backgroundcolor=\color{gray97},
+	rulesepcolor=\color{black}, basicstyle=\ttfamily\footnotesize,
+	keywordstyle=\bfseries, stringstyle=\ttfamily, showstringspaces=false,
+	commentstyle=\color{gray45}, numbers=left, numbersep=15pt,
+	numberstyle=\tiny, numberfirstline=false, breaklines=true,
+	xleftmargin=\parindent}
+\captionsetup*[lstlisting]{font=small, labelsep=period}
+\lstset{style=estilo}
+\renewcommand{\lstlistingname}{\uppercase{Código}}
+
+% BIBLIOGRAFIA IEEE (biblatex + biber)
+\usepackage[backend=biber, style=ieee, isbn=false,sortcites, maxbibnames=6, minbibnames=1]{biblatex}
+\DefineBibliographyStrings{spanish}{%
+	andothers = {et\addabbrvspace al\adddot}}
+\DefineBibliographyStrings{spanish}{
+	url = {\adddot\space[En línea]\adddot\space Disponible en:}}
+\DefineBibliographyStrings{spanish}{urlseen = {Acceso:}}
+\DefineBibliographyStrings{spanish}{pages = {pp\adddot}, page = {p.\adddot}}
+\addbibresource{referencias.bib}
+
+% \cref (cargar tras hyperref)
+\usepackage[noabbrev,nameinlink,spanish]{cleveref}
+
+% ACRONIMOS
+\usepackage[acronym,nonumberlist,toc]{glossaries}
+\makeglossaries
+\input{chapters/00_acronimos}
+
+% TEOREMAS
+\theoremstyle{remark}
+\newtheorem{observacion}{Observación}[chapter]
+\newtheorem{ejemplo}{Ejemplo}[chapter]
+\newtheorem{definicion}{Definición}[chapter]
+
+% COMANDOS PERSONALIZADOS
+\newcommand{\vires}{\mathrm{VI}_{\text{res}}}
+\newcommand{\aucpr}{\text{AUC-PR}}
+\newcommand{\aucroc}{\text{AUC-ROC}}
+\newcommand{\fone}{F_{1}}
+\newcommand{\ftwo}{F_{2}}
+\newcommand{\code}[1]{\texttt{\small #1}}
+
+%-------------
+%	DOCUMENTO
+%-------------
+\begin{document}
+\pagenumbering{roman}
+
+%----------
+%	PORTADA
+%----------
+\begin{titlepage}
+	\begin{sffamily}
+	\color{azulUC3M}
+	\begin{center}
+		\begin{figure}[H]
+			\makebox[\textwidth][c]{\includegraphics[width=16cm]{logo_UC3M.png}}
+		\end{figure}
+		\vspace{2.5cm}
+		\begin{Large}
+			Grado en Ingeniería de Telecomunicación\\
+			 2025-2026\\
+			\vspace{2cm}
+			\textsl{Trabajo Fin de Grado}
+			\bigskip
+		\end{Large}
+		 	{\Huge Detección de ataques de inyección de datos falsos en contadores inteligentes mediante aprendizaje automático no supervisado}\\
+		 	\vspace*{0.5cm}
+	 		\rule{10.5cm}{0.1mm}\\
+			\vspace*{0.9cm}
+			{\LARGE Matvey Sinelnik}\\
+			\vspace*{1cm}
+		\begin{Large}
+			Tutora\\
+			Marta Moure Garrido\\
+			Leganés, Madrid\\
+		\end{Large}
+	\end{center}
+	\vfill
+	\color{black}
+	\includegraphics[width=4.2cm]{creativecommons.png}\\
+	Esta obra se encuentra sujeta a la licencia Creative Commons \textbf{Reconocimiento - No Comercial - Sin Obra Derivada}
+	\end{sffamily}
+\end{titlepage}
+
+\newpage
+\thispagestyle{empty}
+\mbox{}
+
+%----------
+%	RESUMEN
+%----------
+\renewcommand\abstractname{\large\bfseries\filcenter\uppercase{Resumen}}
+\begin{abstract}
+\thispagestyle{plain}
+\setcounter{page}{3}
+
+	La red eléctrica que llega a nuestras casas ya no es la de hace veinte años. Hoy cada vivienda en España tiene un contador inteligente que reporta su consumo cada pocos minutos, y esa cadena de medida es la base sobre la que se calcula la factura y se planifica la demanda. El problema es evidente: si alguien manipula esos datos ---los llamados ataques de inyección de datos falsos o FDI (\textit{False Data Injection})--- el operador toma decisiones sobre información comprometida. Este Trabajo Fin de Grado se ocupa de detectar esa manipulación sin recurrir a etiquetas de ataque, partiendo del conjunto público \textit{UCI Individual Household Electric Power Consumption} (algo más de dos millones de registros minuto a minuto durante 47 meses).
+
+	Como no existen datos públicos de ataques FDI reales sobre contadores domésticos, se construye un banco sintético de siete tipos de ataque, organizados en cuatro familias ---magnitud, temporal, patrón y físico--- con tres niveles de severidad. Los rangos se eligen por argumento económico: por debajo de un fraude del 15\,\% el ataque ya no resulta rentable, así que ataques más leves no son realistas. Sobre ese banco se entrenan y comparan ocho detectores con el mismo protocolo y el mismo particionado temporal: dos clásicos (\textit{Isolation Forest} y un híbrido con K\nobreakdash-Means), cuatro autoencoders profundos (denso, LSTM, convolucional y \textit{transformer}), un LightGBM supervisado como techo, y un \textit{stacking} sobre todos ellos. El trabajo también propone una característica con motivación física, $\vires$, que mide cuánto se aleja la potencia reportada de la que implica el producto $V\cdot I$; cuando el atacante manipula la primera pero no controla la corriente, esa invariante se rompe y resulta diagnóstica.
+
+	El sistema incluye un postprocesado temporal por votación causal $W/K$, un análisis de explicabilidad con SHAP, una evaluación de transferencia al \textit{dataset} UK-DALE y un análisis de robustez frente a atacantes adaptativos. El mejor detector no supervisado obtiene un AUC-PR competitivo con una latencia mediana por debajo de los cinco minutos y un tamaño en disco de pocos centenares de kilobytes, lo bastante ligero para ejecutarse en el propio contador. Se cierra con un capítulo sobre el marco regulador europeo y español (RGPD, NIS2, Ley 8/2011 de protección de infraestructuras críticas) y un análisis socioeconómico del proyecto.
+
+	\textbf{Palabras clave:} detección de anomalías; ataques de inyección de datos falsos; contadores inteligentes; aprendizaje profundo; \textit{autoencoder}; \textit{transformer}; ciberseguridad de redes eléctricas; \textit{edge computing}.
+
+	\vfill
+\end{abstract}
+	\newpage
+	\thispagestyle{empty}
+	\mbox{}
+
+%----------
+%	ABSTRACT
+%----------
+\renewcommand\abstractname{\large\bfseries\filcenter\uppercase{Abstract}}
+\begin{abstract}
+\thispagestyle{plain}
+
+	Every household in Spain now has a smart meter reporting consumption every few minutes. That data feeds billing systems and demand forecasts, so anyone tampering with it puts the operator on the back foot. False Data Injection (FDI) attacks are precisely that kind of tampering, and they are hard to spot because the manipulated readings still look plausible. This Bachelor's thesis tackles their unsupervised detection on residential electric consumption time series, using the public \textit{UCI Individual Household Electric Power Consumption} dataset (just over two million one-minute records across 47 months).
+
+	Since no public dataset of real FDI attacks on domestic meters exists, we build a synthetic bench with seven attack types organised into four families ---magnitude, temporal, pattern and physical--- with three severity levels. The severity ranges are picked by an economic argument: below roughly a 15\,\% theft factor, the attack stops being profitable, so milder ones are unrealistic. On this bench we train and compare eight detectors under the same protocol and the same strict temporal split: two classical (\textit{Isolation Forest} and a K\nobreakdash-Means hybrid), four deep autoencoders (dense, LSTM, convolutional and transformer), a supervised LightGBM as a ceiling, and a stacking ensemble on top of all of them. We also introduce a physics-grounded feature, $\vires$, that measures how much the reported active power departs from the value implied by $V\cdot I$; when an attacker tampers with the power but cannot control the current, that invariant breaks and becomes diagnostic.
+
+	The system adds a causal $W/K$ temporal voting post-processor, a SHAP explainability layer, a cross-domain transfer evaluation on UK-DALE, and an adaptive-attacker robustness study. The best unsupervised detector reaches a competitive AUC-PR with a median detection latency below five minutes and a model footprint of a few hundred kilobytes ---light enough to run on the meter itself. The thesis closes with the European and Spanish regulatory framework (GDPR, NIS2, Law 8/2011 on critical infrastructure protection) and a socio-economic analysis of the project.
+
+	\textbf{Keywords:} anomaly detection; false data injection; smart meters; deep learning; \textit{autoencoder}; \textit{transformer}; smart-grid cybersecurity; edge computing.
+
+	\vfill
+\end{abstract}
+	\newpage
+	\thispagestyle{empty}
+	\mbox{}
+
+%----------
+%	DEDICATORIA
+%----------
+\chapter*{Dedicatoria}
+	\noindent A mi familia y a quienes me han acompañado durante el grado.
+	\vfill
+	\newpage
+	\thispagestyle{empty}
+	\mbox{}
+
+%----------
+%	INDICES
+%----------
+\tableofcontents
+\thispagestyle{fancy}
+\newpage
+\thispagestyle{empty}
+\mbox{}
+
+\listoffigures
+\thispagestyle{fancy}
+\newpage
+\thispagestyle{empty}
+\mbox{}
+
+\listoftables
+\thispagestyle{fancy}
+\newpage
+\thispagestyle{empty}
+\mbox{}
+
+\printglossary[type=\acronymtype,title={Glosario de acrónimos},toctitle={Glosario de acrónimos}]
+\thispagestyle{fancy}
+\newpage
+\thispagestyle{empty}
+\mbox{}
+
+%----------
+%	MEMORIA
+%----------
+\clearpage
+\pagenumbering{arabic}
+
+\input{chapters/01_introduccion}
+\input{chapters/02_estado_arte}
+\input{chapters/03_marco_teorico}
+\input{chapters/04_datos_metodologia}
+\input{chapters/05_diseno_experimental}
+\input{chapters/06_resultados}
+\input{chapters/07_conclusiones}
+\input{chapters/08_marco_regulador}
+
+%----------
+%	BIBLIOGRAFIA
+%----------
+\clearpage
+\addcontentsline{toc}{chapter}{Bibliografía}
+\setquotestyle[english]{british}
+\printbibliography
+
+%----------
+%	ANEXOS
+%----------
+\appendix
+\input{chapters/09_anexos}
+
+\end{document}

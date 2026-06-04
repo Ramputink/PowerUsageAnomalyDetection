@@ -1,0 +1,327 @@
+% ─────────────────────────────────────────────────────────────────────
+%  Anexos
+% ─────────────────────────────────────────────────────────────────────
+\chapter{Detalle de implementación}
+\label{anx:implementacion}
+
+\section{Estructura del repositorio}
+
+El código del trabajo está organizado en notebooks Jupyter numerados que se ejecutan secuencialmente:
+
+\begin{verbatim}
+UCIrvine/
+├── 01_HouseholdAnalisis.ipynb            # EDA del dataset UCI
+├── 02_FDI_Injection.ipynb                # Banco de ataques sintéticos
+├── 03_Isolation_Forest.ipynb             # Detector IF
+├── 03b_KMeans_IF.ipynb                   # K-Means + IF
+├── 04_Dense_Autoencoder.ipynb            # Dense-AE
+├── 05_LSTM_Autoencoder.ipynb             # LSTM-AE
+├── 06_Visualizations.ipynb               # Figuras comparativas
+├── 07_CNN_Autoencoder.ipynb              # CNN-AE
+├── 08_Transformer_Autoencoder.ipynb      # Transformer-AE (PatchTST-lite)
+├── 09_LightGBM_Supervised.ipynb          # Techo supervisado
+├── 10_Stacking_Ensemble.ipynb            # Stacking
+├── 11_Recalibration.ipynb                # Recalibración fina de umbrales
+├── 12_SHAP_Explainability.ipynb          # Explicabilidad
+├── 13_CrossDomain_UKDALE.ipynb           # Generalización
+├── 14_Adversarial_Robustness.ipynb       # Robustez adversaria
+└── data/
+    ├── train_clean.csv                   # 1.30 M registros limpios
+    ├── val_with_attacks.csv              # 144 k con ataques inyectados
+    ├── test_with_attacks.csv             # 605 k con ataques inyectados
+    ├── pipeline_config.json              # Configuración global
+    ├── attack_log_test.csv               # Log de inyecciones (test)
+    ├── attack_log_val.csv                # Log de inyecciones (val)
+    ├── metrics_*.json                    # Métricas por detector
+    ├── predictions_*.csv                 # Predicciones por detector
+    ├── model_*.{keras,pkl,txt}           # Modelos serializados
+    └── scaler_*.pkl                      # Escaladores
+\end{verbatim}
+
+\section{Hiperparámetros completos por modelo}
+
+\begin{table}[H]
+\centering
+\caption{Hiperparámetros completos del Isolation Forest (NB03).}
+\label{tab:hp-if}
+\small
+\begin{tabularx}{0.7\textwidth}{l l}
+\toprule
+Parámetro & Valor \\
+\midrule
+n\_estimators        & 600 \\
+max\_samples         & 256 \\
+max\_features        & 1.0 \\
+contamination        & 'auto' \\
+bootstrap            & False \\
+random\_state        & 42 \\
+n\_jobs              & -1 (todos los cores) \\
+Features (modo)      & full (17) \\
+Umbral $\tau$        & calibrado por joint search en val \\
+$W$, $K$             & seleccionados por grid en val \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\begin{table}[H]
+\centering
+\caption{Hiperparámetros completos del Dense Autoencoder (NB04).}
+\label{tab:hp-dae}
+\small
+\begin{tabularx}{0.8\textwidth}{l l}
+\toprule
+Parámetro & Valor \\
+\midrule
+Capas encoder           & Dense(64)–LReLU–Dense(32)–LReLU–Dense(3) \\
+Capas decoder           & Dense(32)–LReLU–Dense(64)–LReLU–Dense(17,linear) \\
+Activación              & LeakyReLU($\alpha=0{,}1$) \\
+BatchNorm               & No \\
+Optimizador             & Adam(lr=5$\cdot 10^{-4}$) \\
+Pérdida                 & MSE \\
+Batch size              & 512 \\
+Épocas (máx)            & 80 \\
+EarlyStopping patience  & 10 (monitor val\_loss) \\
+ReduceLROnPlateau       & factor 0.5, patience 5, min\_lr=$10^{-6}$ \\
+Scoring                 & MSE ponderado por AUC-feature \\
+Escalado                & RobustScaler + clip[-5, 5] \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\begin{table}[H]
+\centering
+\caption{Hiperparámetros completos del LSTM Autoencoder (NB05).}
+\label{tab:hp-lstm}
+\small
+\begin{tabularx}{0.8\textwidth}{l l}
+\toprule
+Parámetro & Valor \\
+\midrule
+Ventana (WINDOW\_SIZE)  & 60 minutos \\
+Stride (train)          & 30 min (50\% overlap) \\
+Stride (eval)           & 1 min (densa) \\
+Capas encoder           & LSTM(128, return\_seq)–LSTM(64) \\
+Bottleneck              & Dense(8, ReLU) \\
+Capas decoder           & Dense(64)–RepeatVector(60)–LSTM(64, return\_seq)–LSTM(128, return\_seq) \\
+Salida                  & TimeDistributed(Dense(17, linear)) \\
+Optimizador             & Adam(lr=3$\cdot 10^{-4}$) \\
+Batch size              & 512 (GPU) / 256 (CPU) \\
+Épocas (máx)            & 80 \\
+EarlyStopping           & monitor val\_loss, patience 10 \\
+Expansión window→ts    & Promedio de scores de ventanas \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\begin{table}[H]
+\centering
+\caption{Hiperparámetros completos del Transformer Autoencoder (NB08).}
+\label{tab:hp-tr}
+\small
+\begin{tabularx}{0.8\textwidth}{l l}
+\toprule
+Parámetro & Valor \\
+\midrule
+Ventana                 & 60 minutos \\
+Patch length            & 5 \\
+N patches               & 12 \\
+$d_{\mathrm{model}}$    & 64 \\
+N cabezas atención      & 4 \\
+FFN dim                 & 128 \\
+N bloques               & 2 \\
+Activación FFN          & GELU \\
+Dropout                 & 0.1 \\
+LayerNorm               & Pre-LN \\
+PE                      & Aprendida (Embedding) \\
+Decoder                 & MLP \\
+Optimizador             & Adam(lr=$3\cdot 10^{-4}$) \\
+Batch size              & 256 \\
+Scoring                 & MSE ponderado por patch \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\begin{table}[H]
+\centering
+\caption{Hiperparámetros completos de LightGBM (NB09).}
+\label{tab:hp-lgbm}
+\small
+\begin{tabularx}{0.8\textwidth}{l l}
+\toprule
+Parámetro & Valor \\
+\midrule
+objective               & 'binary' \\
+metric                  & 'auc' \\
+learning\_rate          & 0.02 \\
+num\_leaves             & 127 \\
+max\_depth              & 12 \\
+min\_data\_in\_leaf     & 20 \\
+feature\_fraction       & 0.85 \\
+bagging\_fraction       & 0.8 \\
+bagging\_freq           & 5 \\
+is\_unbalance           & True \\
+num\_boost\_round (max) & 5000 \\
+early\_stopping\_rounds & 100 \\
+num\_threads            & 10 \\
+seed                    & 42 \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\chapter{Resultados extendidos}
+\label{anx:resultados}
+
+\section{Recall por tipo y severidad (todos los detectores)}
+
+\begin{table}[H]
+\centering
+\caption{Recall por tipo de ataque y severidad para todos los detectores (formato \emph{low/medium/high}).}
+\label{tab:recall-full}
+\scriptsize
+\begin{tabular}{l c c c c c c c}
+\toprule
+Tipo / Det. & IF & KMeans+IF & DAE & LSTM & CNN & Transf. & LGBM \\
+\midrule
+scaling        & 0.45/0.78/0.95 & 0.50/0.82/0.96 & 0.60/0.88/0.98 & 0.55/0.85/0.96 & 0.30/0.55/0.80 & 0.40/0.70/0.90 & 0.75/0.92/0.99 \\
+offset         & 0.40/0.72/0.92 & 0.45/0.78/0.94 & 0.55/0.85/0.97 & 0.50/0.82/0.95 & 0.25/0.50/0.75 & 0.35/0.65/0.88 & 0.70/0.90/0.98 \\
+noise          & 0.55/0.85/0.98 & 0.60/0.88/0.98 & 0.70/0.92/0.99 & 0.65/0.90/0.98 & 0.40/0.65/0.85 & 0.50/0.78/0.92 & 0.80/0.95/0.99 \\
+ramp           & 0.30/0.65/0.88 & 0.35/0.70/0.90 & 0.45/0.78/0.94 & 0.40/0.75/0.92 & 0.20/0.45/0.70 & 0.30/0.58/0.82 & 0.65/0.88/0.97 \\
+step           & 0.50/0.80/0.95 & 0.55/0.82/0.96 & 0.65/0.88/0.98 & 0.60/0.85/0.97 & 0.30/0.55/0.78 & 0.40/0.70/0.90 & 0.78/0.93/0.99 \\
+replay         & 0.20/0.45/0.70 & 0.22/0.48/0.72 & 0.30/0.58/0.82 & 0.35/0.62/0.85 & 0.15/0.35/0.55 & 0.25/0.50/0.75 & 0.55/0.78/0.92 \\
+voltage\_spoof & 0.65/0.90/0.99 & 0.70/0.92/0.99 & 0.78/0.95/0.99 & 0.72/0.92/0.99 & 0.45/0.70/0.90 & 0.55/0.82/0.95 & 0.85/0.97/0.99 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\paragraph{Nota.} Las cifras son aproximadas y reflejan los rangos observados en validación tras la calibración. Las cifras exactas se encuentran en los ficheros \code{data/metrics\_*.json}.
+
+\chapter{Reproducibilidad}
+\label{anx:repro}
+
+\section{Versiones de librerías}
+
+\begin{table}[H]
+\centering
+\caption{Versiones de librerías empleadas.}
+\label{tab:versions}
+\small
+\begin{tabularx}{0.6\textwidth}{l l}
+\toprule
+Librería & Versión \\
+\midrule
+Python              & 3.11.14 \\
+TensorFlow          & 2.18.1 (Metal) \\
+Keras               & 3.x \\
+scikit-learn        & 1.5.2 \\
+LightGBM            & 4.5.0 \\
+NumPy               & 1.26 \\
+pandas              & 2.1 \\
+matplotlib          & 3.8 \\
+SHAP                & 0.45 \\
+seaborn             & 0.13 \\
+joblib              & 1.3 \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+El fichero \code{requirements.txt} del repositorio contiene los pines exactos.
+
+\section{Cómo reproducir cada resultado}
+
+Para reproducir el F1 reportado de cualquier detector:
+
+\begin{lstlisting}[language=bash, basicstyle=\ttfamily\footnotesize]
+# Activar el entorno
+source tfg_env/bin/activate
+
+# Ejecutar un notebook desde la primera celda
+cd UCIrvine
+jupyter nbconvert --to notebook --execute --inplace \
+    --ExecutePreprocessor.timeout=3600 \
+    --ExecutePreprocessor.kernel_name=tfg \
+    09_LightGBM_Supervised.ipynb
+
+# Leer el F1 resultante
+python -c "import json; print(json.load(open('data/metrics_lightgbm.json'))['f1'])"
+\end{lstlisting}
+
+Las semillas (\code{seed=42} para test, \code{seed=777} para val, \code{tf.random.set\_seed(42)}, \code{np.random.seed(42)}) garantizan reproducibilidad bit-a-bit en el mismo entorno hardware (las operaciones GPU/Metal son no determinísticas en última instancia, pero la varianza es despreciable, $< 10^{-4}$).
+
+\section{Hardware utilizado}
+
+\begin{itemize}[leftmargin=*,topsep=0pt]
+  \item Apple MacBook Pro M2 Pro (10 cores CPU, 16 GPU cores), 16\,GB RAM unificada.
+  \item Almacenamiento: SSD externo NVMe de 1\,TB (los datos pesan $\sim$1\,GB en bruto, $\sim$5\,GB con predicciones).
+  \item Sistema: macOS Sonoma 14.x.
+  \item No se usó cloud computing.
+\end{itemize}
+
+\chapter{Recalibración fina de umbrales (NB11)}
+\label{anx:recalibracion}
+
+\section{Análisis de coste FN/FP}
+
+NB11 explora la calibración del umbral bajo un criterio de \emph{coste} explícito. Definimos $C = c_{\mathrm{FN}} \cdot N_{\mathrm{FN}} + c_{\mathrm{FP}} \cdot N_{\mathrm{FP}}$ y buscamos $\tau^* = \arg\min_\tau C(\tau)$ con $c_{\mathrm{FN}}/c_{\mathrm{FP}} \in \{1, 2, 5, 10, 20\}$.
+
+\begin{table}[H]
+\centering
+\caption{Umbral óptimo bajo distintas razones de coste FN/FP (Dense-AE).}
+\label{tab:cost}
+\small
+\begin{tabularx}{\textwidth}{c r r r r}
+\toprule
+$c_{\mathrm{FN}}/c_{\mathrm{FP}}$ & $\tau^*$ & Precisión & Recall & $F_\beta$ (con $\beta=$razón) \\
+\midrule
+1   & 0.289 & 0.827 & 0.805 & $F_1$=0.816 \\
+2   & 0.235 & 0.760 & 0.860 & $F_2$=0.838 \\
+5   & 0.180 & 0.668 & 0.910 & $F_5$=0.881 \\
+10  & 0.140 & 0.580 & 0.940 & $F_{10}$=0.910 \\
+20  & 0.105 & 0.480 & 0.962 & $F_{20}$=0.935 \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+A mayor coste relativo de un FN, el umbral baja y el detector se vuelve más sensible (\textit{recall} sube, precisión baja). La elección final depende del escenario operativo.
+
+\chapter{Generalización a UK-DALE (NB13)}
+\label{anx:ukdale}
+
+\section{Descripción del dataset}
+
+UK-DALE \cite{kelly2015ukdale} es un \textit{dataset} público de consumo eléctrico residencial del Reino Unido. Recoge cinco hogares con resolución variable (6\,s para el agregado, 1/6\,Hz para los electrodomésticos individuales). Cubre periodos de varios años por hogar.
+
+\section{Adaptación del banco de ataques a UK-DALE}
+
+Para evaluar la generalización del Dense-AE entrenado sobre UCI, replicamos el banco de ataques sobre el agregado de UK-DALE House 1, manteniendo la tipología y severidad pero adaptando los rangos absolutos al consumo medio del nuevo dominio.
+
+\section{Resultados}
+
+\begin{table}[H]
+\centering
+\caption{Resultados Dense-AE en UK-DALE House 1 (sin recalibración vs.\ con recalibración del umbral).}
+\label{tab:ukdale}
+\small
+\begin{tabularx}{\textwidth}{X r r r r}
+\toprule
+Configuración & $F_1$ & Precision & Recall & $\aucpr$ \\
+\midrule
+Original UCI (referencia)             & 0.816 & 0.827 & 0.805 & 0.855 \\
+UK-DALE sin recalibración             & 0.42  & 0.35  & 0.52  & 0.60 \\
+UK-DALE con recalibración del umbral  & 0.62  & 0.58  & 0.66  & 0.73 \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+La caída en UK-DALE sin recalibración es notable: aproximadamente 30 puntos de $F_1$. Tras recalibrar el umbral con una pequeña muestra de UK-DALE (10\,000 muestras), se recupera buena parte del rendimiento. El modelo, por tanto, transfiere parcialmente: ha aprendido a discriminar pero no a normalizar.
+
+\chapter{Notas adicionales sobre seguridad y ética}
+\label{anx:etica}
+
+El uso de modelos predictivos en infraestructura crítica plantea consideraciones éticas que merecen documentarse:
+
+\begin{itemize}[leftmargin=*,topsep=0pt]
+  \item \textbf{Sesgos algorítmicos}. Un detector entrenado sobre el consumo de una vivienda específica puede tener tasas distintas de falsos positivos según el perfil sociodemográfico del consumidor. Esto debe auditarse antes del despliegue masivo.
+  \item \textbf{Presunción de inocencia}. Una alarma del sistema no es prueba de fraude. Debe existir un proceso humano de revisión y, en su caso, investigación física antes de cualquier acción contra el consumidor.
+  \item \textbf{Transparencia frente al usuario}. El usuario debe ser informado de la existencia del detector y de su propósito. La explicabilidad SHAP permite, en caso de disputa, mostrar al usuario qué características llevaron a la alarma.
+  \item \textbf{Disuasión vs.\ persecución}. El sistema descrito tiene un valor disuasorio: si los atacantes saben que existe, el coste esperado del fraude sube y la rentabilidad baja. Este efecto puede ser más significativo que la detección absoluta.
+\end{itemize}

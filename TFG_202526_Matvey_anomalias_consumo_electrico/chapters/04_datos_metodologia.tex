@@ -1,0 +1,212 @@
+% ─────────────────────────────────────────────────────────────────────
+%  Capítulo 4 — Datos y metodología
+% ─────────────────────────────────────────────────────────────────────
+\chapter{Datos y metodología experimental}
+\label{cap:datos}
+
+Este capítulo describe el conjunto de datos, su análisis exploratorio, el particionado temporal, el banco de ataques sintéticos, la ingeniería de características y el protocolo común de evaluación. La intención es que cualquier lector pueda entender en detalle de qué dato salen los modelos, reproducir el trabajo de extremo a extremo y ver cada decisión metodológica explícitamente justificada.
+
+\section{El conjunto de datos UCI \emph{Individual Household Electric Power Consumption}}
+\label{sec:uci}
+
+Trabajamos sobre el conjunto \textit{Individual Household Electric Power Consumption} del \textit{UCI Machine Learning Repository} \cite{hebrail2012uci}. Recoge medidas de un único hogar de Sceaux (sureste de París) entre el 16 de diciembre de 2006 y el 26 de noviembre de 2010, con resolución de un minuto, lo que da un total de 2\,075\,259 registros. Es probablemente el dataset abierto más usado en la literatura de detección de anomalías en consumo doméstico \cite{himeur2021review}, lo que garantiza poder comparar con trabajos previos.
+
+\paragraph{Variables medidas.} El dataset contiene siete variables continuas con las siguientes unidades y descripción:
+
+\begin{table}[H]
+\centering
+\caption{Variables del conjunto UCI \emph{Individual Household Electric Power Consumption}.}
+\label{tab:uci-vars}
+\small
+\begin{tabularx}{\textwidth}{lXl}
+\toprule
+Variable & Descripción & Unidad \\
+\midrule
+\code{Global\_active\_power}    & Potencia activa total minuto a minuto                                 & \si{\kilo\watt} \\
+\code{Global\_reactive\_power}  & Potencia reactiva total minuto a minuto                               & \si{\kilo\watt} \\
+\code{Voltage}                  & Tensión RMS                                                           & \si{\volt} \\
+\code{Global\_intensity}        & Intensidad RMS                                                        & \si{\ampere} \\
+\code{Sub\_metering\_1}         & Energía activa en circuito \emph{cocina} (microondas, horno, vitro)   & \si{\watt\hour} \\
+\code{Sub\_metering\_2}         & Energía activa en circuito \emph{lavadero} (lavadora, secadora, frigo)& \si{\watt\hour} \\
+\code{Sub\_metering\_3}         & Energía activa en circuito \emph{climatización} (calefacción, ACS)    & \si{\watt\hour} \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+Existe una relación física aproximada $\mathrm{Global\_active\_power} \approx \mathrm{Voltage} \cdot \mathrm{Global\_intensity} / 1000$ (en \si{\kilo\watt}), modulada por el factor de potencia. Esta invariante es la base de la característica $\vires$ utilizada como detector físico (\cref{sec:features}).
+
+\paragraph{Calidad del dato.} El dataset reporta valores ausentes mediante el carácter \code{?}; estos representan aproximadamente el 1{,}25\% de los registros. Se tratan por interpolación lineal en las series continuas y por imputación con cero (consumo ausente o circuito apagado) en los submedidores. Tras imputación, no quedan NaN.
+
+\paragraph{Por qué este dataset.} La elección se sostiene por cuatro razones que se acumulan. Es público y descargable bajo licencia abierta, lo que facilita la reproducibilidad. Es suficientemente largo ---47 meses cubren con holgura la estacionalidad anual. Tiene resolución fina, de un minuto, equiparable a la de los contadores reales de telegestión. Y, sobre todo, es multivariante con submedidores: la presencia de los tres circuitos de submedición permite jugar con la complementariedad de información, y la relación $V\cdot I$ ofrece la invariante física sobre la que se construye $\vires$.
+
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=0.95\textwidth]{uci_overview.png}
+  \caption{Visión general del consumo de la vivienda UCI.}
+  \label{fig:uci-overview}
+\end{figure}
+
+\section{Análisis exploratorio}
+\label{sec:eda}
+
+El EDA (NB01) confirma los patrones que esperaríamos de cualquier vivienda. La estacionalidad diaria es la más visible: dos picos claros, uno matinal entre las 6 y las 9 de la mañana y otro vespertino entre las 18 y las 22, separados por un valle nocturno en el que el consumo de fondo se queda en torno a 0{,}3--0{,}5\,kW (frigorífico, equipos en \textit{stand-by}). La estacionalidad semanal también aparece: los fines de semana cambian el reparto horario ---picos más diurnos--- y el total es ligeramente superior. La anual viene marcada por el invierno, con un consumo notablemente mayor por la calefacción eléctrica, visible sobre todo en \code{Sub\_metering\_3}. La serie minuto a minuto está fuertemente autocorrelacionada (decaimiento lento del ACF y picos en múltiplos de 1\,440 minutos = 24\,h), y la correlación entre \code{Global\_active\_power} y \code{Global\_intensity} es casi perfecta ($r>0{,}99$), lo que valida empíricamente la invariante física en la que descansará $\vires$. La \code{Voltage}, por su parte, se mantiene en una banda estrecha (235--250\,V) y apenas correla con la potencia.
+
+Estos hallazgos no son anecdóticos: empujan tres decisiones de diseño. Que las codificaciones cíclicas \code{hour\_sin/cos} y \code{dow\_sin/cos} formen parte del espacio de características, que las ventanas de los modelos secuenciales sean de 60 minutos ---una hora completa de contexto--- y que construyamos la \textit{feature} $\vires$ explotando precisamente la relación $V\cdot I$. La \cref{fig:uci-overview} resume visualmente estos patrones sobre la propia serie.
+
+\section{Particionado temporal}
+\label{sec:split}
+
+El particionado es uno de esos detalles que en la literatura suele tratarse a la ligera y al que un tribunal mira con lupa. Sobre series temporales, hacer un \textit{split} aleatorio introduce fuga de información: el modelo aprende del futuro y las métricas estimadas salen infladas. Por eso aquí usamos un particionado \textbf{estrictamente temporal}, con fechas de corte fijas:
+
+\begin{table}[H]
+\centering
+\caption{Particionado temporal del conjunto UCI utilizado en este trabajo.}
+\label{tab:split}
+\small
+\begin{tabularx}{\textwidth}{l X r r r}
+\toprule
+Partición & Rango temporal & Muestras & Ataques inyectados & Tipo \\
+\midrule
+\code{train\_clean}         & 2006-12-16 17:24 -- 2009-06-09 07:36  & 1\,300\,061 & 0      & limpio \\
+\code{val\_with\_attacks}   & 2009-06-09 07:37 -- 2009-09-20 12:44  &   144\,452 & 21\,739 & val. con ataques \\
+\code{test\_with\_attacks}  & 2009-09-20 12:45 -- 2010-11-26 21:02  &   604\,999 & 96\,717 & test \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\paragraph{Justificación.} Este reparto cumple lo importante. Los detectores no supervisados entrenan únicamente con \code{train\_clean}, que precede en el tiempo a las otras dos particiones. La calibración del umbral y del filtro temporal se hace en \code{val} y solo en \code{val}. Y la evaluación final se hace en \code{test}, que ni el modelo ni la calibración han visto en ningún paso anterior. Esta separación elimina la fuga de información y, además, refleja el escenario realista de despliegue: entrenar con datos pasados y evaluar contra datos futuros.
+
+\section{Banco de ataques FDI sintéticos}
+\label{sec:banco-ataques}
+
+Ya en el \cref{sec:soa-fdi} explicamos por qué no existen datasets públicos de contadores domésticos con FDI reales etiquetados. Ante eso, lo que hace todo el mundo ---y lo que hacemos aquí--- es simular los ataques sobre datos limpios; tiene la ventaja añadida de proporcionar un \textit{ground truth} exacto para la evaluación. El banco generado en NB02 contiene siete tipos de ataque agrupados en cuatro categorías mecánicas y con tres niveles de severidad.
+
+\subsection{Modelo de amenaza}
+
+Antes de detallar los ataques conviene fijar el modelo de amenaza. Asumimos que \textbf{el atacante controla las lecturas que el contador reporta} (\code{Global\_active\_power}, \code{Global\_reactive\_power} y \code{Voltage}) pero \textbf{no las medidas físicas independientes}: los submedidores y la corriente RMS (\code{Global\_intensity}). Es una hipótesis razonable si el atacante manipula la comunicación entre el contador y el concentrador ---por ejemplo, con un \textit{man-in-the-middle} a nivel de protocolo--- pero no tiene acceso físico al sensorizado interno del contador. Es, además, un modelo deliberadamente conservador: queda a medio camino entre el atacante completamente externo (que ni siquiera podría tocar las lecturas) y el atacante con acceso físico total (que podría falsear cualquier cosa).
+
+Bajo esta hipótesis, las invariantes físicas $\mathrm{P} \approx \mathrm{V}\cdot\mathrm{I}/1000$ y $\sum \mathrm{Sub\_metering}_k \lesssim \mathrm{P}$ se rompen en cuanto hay ataque sobre la potencia, lo que abre una vía de detección que no depende del modelo de comportamiento del usuario. Esa es exactamente la vía que aprovecha $\vires$.
+
+\subsection{Tipología de ataques}
+
+\paragraph{Categoría 1 --- Magnitud.}
+
+\begin{itemize}[leftmargin=*,topsep=0pt]
+  \item \emph{Scaling} ($\alpha$-multiplicativo): $x'_t = \alpha \cdot x_t$ con $\alpha \in (0, 1)$. Reduce la potencia reportada en una fracción fija. Es el ataque más simple y el más rentable económicamente: si el atacante quiere reducir su factura un 30\%, $\alpha=0{,}7$.
+  \item \emph{Offset} (desplazamiento aditivo): $x'_t = x_t - \delta$ con $\delta > 0$. Resta una cantidad fija; en momentos de bajo consumo puede dar lugar a valores negativos, que el atacante recortaría a cero para mantener plausibilidad.
+  \item \emph{Noise} (ruido aditivo): $x'_t = x_t + \mathcal{N}(0, \sigma^2)$ con $\sigma$ proporcional a la varianza local. Introduce ruido para enmascarar otros ataques o degradar el sistema de facturación.
+\end{itemize}
+
+\paragraph{Categoría 2 --- Temporal.}
+
+\begin{itemize}[leftmargin=*,topsep=0pt]
+  \item \emph{Ramp} (deriva lineal): $x'_t = x_t - \rho \cdot (t - t_0)$ para $t \in [t_0, t_1]$. Reducción progresiva que evita el salto detectable de un \textit{offset} abrupto.
+  \item \emph{Step} (salto): $x'_t = x_t - \delta \cdot \mathbb{1}\{t \geq t_0\}$. Salto abrupto que se mantiene tras $t_0$.
+\end{itemize}
+
+\paragraph{Categoría 3 --- Patrón.}
+
+\begin{itemize}[leftmargin=*,topsep=0pt]
+  \item \emph{Replay}: $x'_t = x_{t - \Delta}$ para algún $\Delta$ del orden de horas o días. El atacante \emph{reemite} un tramo histórico de su propio consumo, imitando un patrón normal pero, en realidad, decorrelando el contador del consumo real. Es el ataque más sutil porque los modelos puramente univariantes no lo detectan.
+\end{itemize}
+
+\paragraph{Categoría 4 --- Físico.}
+
+\begin{itemize}[leftmargin=*,topsep=0pt]
+  \item \emph{Voltage spoof}: $\mathrm{Voltage}'_t = \mathrm{Voltage}_t + \Delta V$ con $\Delta V$ en \si{\volt}. Manipula la tensión reportada manteniendo la potencia, lo que rompe la invariante $\mathrm{P}=\mathrm{V}\cdot\mathrm{I}/1000$. Este ataque es el principal motivador de la característica $\vires$.
+\end{itemize}
+
+\subsection{Severidad y calibración económica}
+
+Cada tipo de ataque se inyecta en tres niveles de severidad (\emph{low}, \emph{medium} y \emph{high}). Los rangos los calibramos por un argumento puramente económico: el atacante racional no se arriesga a una detección por un ahorro marginal. Una primera versión usaba rangos \emph{low} entre 0{,}10 y 0{,}25, pero acabamos subiéndolos a 0{,}15--0{,}35 al constatar que un fraude por debajo del 15\,\% no llega a rentabilizar la inversión en montar un ataque FDI ---la cuota típica de los servicios fraudulentos documentados se sitúa entre el 20 y el 50\,\% \cite{messinis2018review,jokar2016electricity}.
+
+\begin{table}[H]
+\centering
+\caption{Resumen del banco de ataques FDI sintéticos generado por NB02.}
+\label{tab:banco}
+\small
+\begin{tabularx}{\textwidth}{l l c c c X}
+\toprule
+Tipo & Categoría & Episodios test & Episodios val & Severidad & Parámetro \\
+\midrule
+scaling        & Magnitud & 120 & 28 & 0{,}15/0{,}30/0{,}50 & $\alpha$ \\
+offset         & Magnitud & 120 & 28 & 0{,}15/0{,}30/0{,}50 & $\delta$ (kW)\\
+noise          & Magnitud & 120 & 28 & 0{,}15/0{,}30/0{,}50 & $\sigma$ relativo\\
+ramp           & Temporal & 120 & 28 & 0{,}15/0{,}30/0{,}50 & $\rho$ pendiente\\
+step           & Temporal & 120 & 28 & 0{,}15/0{,}30/0{,}50 & $\delta$ salto \\
+replay         & Patrón   & 120 & 28 & 0{,}15/0{,}30/0{,}50 & $\Delta$ retardo\\
+voltage\_spoof & Físico   & 120 & 28 & 0{,}15/0{,}30/0{,}50 & $\Delta V$ (V) \\
+\midrule
+\multicolumn{3}{l}{\emph{Duración por episodio:}} & \multicolumn{3}{l}{45--180 minutos uniformemente} \\
+\multicolumn{3}{l}{\emph{Semillas:}} & \multicolumn{3}{l}{test=42, val=777 (reproducibilidad)} \\
+\multicolumn{3}{l}{\emph{No solapamiento entre episodios.}} & & & \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+La \cref{fig:attack-grid} muestra un episodio representativo de cada uno de los siete tipos, superpuesto a la serie original, para hacer visible el efecto que cada ataque produce sobre las lecturas reportadas.
+
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=0.95\textwidth]{attack_grid.png}
+  \caption{Ejemplos representativos de los siete tipos de ataque FDI implementados.}
+  \label{fig:attack-grid}
+\end{figure}
+
+\section{Ingeniería de características}
+\label{sec:features}
+
+Los detectores no usan todos el mismo número de \textit{features}. Hemos definido tres conjuntos anidados que se aplican según el modelo. El conjunto \textbf{base} (8 variables) incluye las 7 originales más \code{VI\_residual}. El \textbf{medium} (13) añade las codificaciones cíclicas \code{hour\_sin/cos} y \code{dow\_sin/cos} más \code{gap\_diff1}. Y el \textbf{full} (17) completa con \code{vi\_res\_abs}, \code{vi\_res\_roll15\_mean}, \code{gap\_intensity\_ratio} y \code{sm\_gap\_ratio}.
+
+\subsection{La característica $\vires$: invariante física}
+
+La característica clave es
+\begin{equation}
+\vires \;=\; \mathrm{Global\_active\_power} - \frac{\mathrm{Voltage} \cdot \mathrm{Global\_intensity}}{1000}.
+\label{eq:vires}
+\end{equation}
+
+En ausencia de ataque, y para una carga puramente resistiva, $\vires \approx 0$. Las cargas reactivas o no lineales producen un residual no nulo pero acotado por el factor de potencia, así que el orden de magnitud se mantiene contenido. Lo interesante es lo que ocurre con un ataque: si el atacante manipula la potencia reportada sin tocar la corriente ---que no controla---, $|\vires|$ crece de forma sistemática, y lo mismo ocurre cuando manipula la tensión (\textit{voltage\_spoof}). En la práctica, $\vires$ funciona como un detector físico de FDI independiente del modelo de comportamiento: sigue valiendo aunque el consumidor tenga un patrón muy atípico, de los que a un modelo de aprendizaje le costaría modelar.
+
+\subsection{Codificaciones cíclicas}
+
+Las variables \code{hour} y \code{dayofweek} son cíclicas (la hora 23 está adyacente a la 0), lo que no captura un \textit{embedding} ordinal. Las codificaciones cíclicas \code{hour\_sin}, \code{hour\_cos} y análogas para \code{dayofweek} representan estas variables como puntos en la circunferencia unidad, lo que conserva la distancia cíclica.
+
+\subsection{Características derivadas adicionales}
+
+\begin{itemize}[leftmargin=*,topsep=0pt]
+  \item \code{gap\_diff1}: diferencia entre minutos consecutivos de \code{Global\_active\_power}. Captura cambios bruscos.
+  \item \code{vi\_res\_abs}: $|\vires|$, útil para detectar la magnitud del residual sin signo.
+  \item \code{vi\_res\_roll15\_mean}: media móvil de 15 minutos de \code{vi\_res\_abs}, que suaviza el ruido instantáneo.
+  \item \code{gap\_intensity\_ratio}: cociente $\mathrm{Global\_active\_power} / (\mathrm{Global\_intensity} + 0{,}01)$. Mide directamente la tensión efectiva implícita.
+  \item \code{sm\_gap\_ratio}: razón entre energía total de submedidores y potencia activa principal. Útil para detectar manipulaciones que afecten al total sin afectar a los submedidores.
+\end{itemize}
+
+\subsection{Escalado y normalización}
+
+Se utiliza \code{RobustScaler} de scikit-learn (resta de mediana, división por rango intercuartílico), ajustado \textbf{exclusivamente sobre \code{train\_clean}}. La elección de \code{RobustScaler} sobre \code{StandardScaler} se debe a la presencia de valores extremos en algunos submedidores; el cuartilado es más resistente a esos extremos. Tras escalado se aplica un \code{clip} a $[-5, 5]$ para acotar los outliers más extremos.
+
+\paragraph{Sobre la ausencia de fuga.} El \code{RobustScaler} se ajusta solo en \code{train\_clean}; luego se aplica a \code{val} y \code{test} con esos mismos estadísticos. Esto es importante porque ajustar el escalador sobre los conjuntos de evaluación introduciría fuga estadística aunque no de etiquetas.
+
+\section{Protocolo de evaluación}
+\label{sec:protocolo}
+
+Todos los detectores siguen el mismo protocolo de evaluación. Sin esa condición, comparar AUC-PR entre modelos sería injusto. El flujo es siempre el siguiente. Los detectores no supervisados entrenan únicamente sobre \code{train\_clean}; LightGBM, al ser supervisado, lo hace sobre el 80\,\% inicial de \code{val}. A continuación se calibra el umbral sobre \code{val\_with\_attacks} maximizando $F_1$, usando la curva precision--recall de scikit-learn para barrer todos los umbrales candidatos. Sobre las predicciones binarizadas se aplica el postprocesado temporal $W/K$ (\cref{alg:wk}), que confirma una predicción positiva sólo si hay al menos $K$ positivos en los últimos $W$ minutos; los valores de $W$ y $K$ se buscan en rejilla maximizando $F_1$ \emph{smoothed} sobre validación. En realidad, hacemos una búsqueda conjunta $(\tau, W, K)$ para que la calibración del umbral y la del filtro temporal sean coherentes entre sí. Por último, con esos $(\tau^*, W^*, K^*)$ ya fijados, evaluamos sobre \code{test\_with\_attacks} y reportamos $\aucroc$, $\aucpr$, $F_1$, $F_2$, precisión, \textit{recall}, latencia mediana por episodio, tasa de detección por episodio, tamaño del modelo y ms/muestra.
+
+\begin{algorithm}[H]
+\caption{Postprocesado temporal por votación causal $W/K$.}
+\label{alg:wk}
+\begin{algorithmic}[1]
+\Require Predicciones binarias $\hat{\bm y} = (\hat y_1, \ldots, \hat y_T)$, parámetros $W, K$ con $K \leq W$.
+\Ensure Predicciones suavizadas $\hat{\bm y}^{(s)}$.
+\State $S \gets$ \emph{cumsum}$(\hat{\bm y})$
+\For{$t = 1, \ldots, T$}
+  \State $l \gets \max(0, t - W)$
+  \State votos $\gets S[t] - S[l]$
+  \State $\hat y^{(s)}_t \gets \mathbb{1}\{\text{votos} \geq K\}$
+\EndFor
+\State \Return $\hat{\bm y}^{(s)}$
+\end{algorithmic}
+\end{algorithm}
+
+\paragraph{Restricción sobre $W$.} Se impone $W \leq 60$ minutos (una hora) para garantizar que el filtro no introduce una latencia excesiva y no convierte trivialmente todo en positivo. Este límite es físicamente razonable: una latencia de detección de hasta una hora es operativamente aceptable, frente a las facturas mensuales del sistema actual.

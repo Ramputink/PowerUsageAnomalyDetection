@@ -1,0 +1,97 @@
+% ─────────────────────────────────────────────────────────────────────
+%  Capítulo 1 — Introducción
+% ─────────────────────────────────────────────────────────────────────
+\chapter{Introducción}
+\label{cap:introduccion}
+
+\section{Contexto y motivación}
+\label{sec:contexto}
+
+Pocas infraestructuras han cambiado tanto en una década como la red eléctrica. Los sensores distribuidos, las comunicaciones bidireccionales y, sobre todo, los contadores inteligentes han convertido lo que era una red analógica en una \textit{smart grid} que monitoriza el consumo cada pocos minutos y gestiona la demanda con información granular del usuario final \cite{fang2012smartgrid,gungor2011smartgrid}. La Directiva 2009/72/CE de la Unión Europea fijó el objetivo de que al menos el 80\,\% de los consumidores tuvieran contador inteligente en 2020; España lo hizo antes, con un parque de unos 28 millones de contadores ya operativo en 2018--2019 \cite{cnmc2019contadores}. Sobre esa capa de medida se han construido servicios que en la red del siglo XX eran impensables: tarifas dinámicas, agregación y respuesta a la demanda en tiempo real, integración del autoconsumo y los vehículos eléctricos, e incluso analítica de eficiencia a nivel de hogar.
+
+El precio de esta digitalización es una superficie de ataque que antes no existía. La AMI (Infraestructura de Medida Avanzada) son hoy millones de nodos IoT con conectividad bidireccional, capacidad de cómputo limitada y un ciclo de vida que se mide en décadas \cite{mclaughlin2016cybersecurity}. La \cref{fig:ami-fdi} resume esa cadena de medida y el punto en el que un atacante puede inyectar lecturas falsas. Comprometer uno solo de esos nodos no es un problema local: cualquier alteración en las lecturas viaja aguas arriba hasta facturación, previsión de demanda y, en el escenario adverso, hasta el operador del sistema. Aquí entran los ataques de inyección de datos falsos, o FDI \cite{liu2009fdi}, que destacan por una propiedad incómoda: pueden mantenerse \emph{stealth} ---invisibles para los estimadores de estado tradicionales--- mientras alteran datos críticos.
+
+A nivel doméstico, los motivos para montar un ataque FDI suelen reducirse a tres. El primero y más obvio es la \textbf{reducción fraudulenta de la factura}: el atacante manipula su contador para que reporte menos consumo del real, y el sobrecoste acaba reflejado en la tarifa del resto a través de las llamadas \emph{pérdidas no técnicas} (NTL). El segundo es la \textbf{ocultación de consumo asociado a actividades ilícitas}; el caso clásico es el cultivo doméstico de cannabis o las granjas de minado de criptomonedas, cuyas firmas de consumo son tan características que basta con reportarlas fielmente para delatarse \cite{messinis2018review}. El tercero, menos frecuente pero el más peligroso, sería una \textbf{manipulación coordinada a gran escala}: un atacante con acceso a una fracción significativa del parque podría distorsionar la previsión agregada de demanda y forzar despachos económicos subóptimos o, en el peor caso, comprometer la estabilidad de la red \cite{liu2017review}.
+
+Las cifras del problema son grandes. La literatura cifra las pérdidas no técnicas globales en torno al 1--3\,\% de la energía distribuida en países desarrollados, llegando al 30--40\,\% en algunas economías emergentes, lo que se traduce en pérdidas anuales superiores a los $96\,000$ millones de dólares en todo el mundo \cite{viegas2017review,messinis2018review}. En España las distribuidoras estiman entre 7\,000 y 9\,000\,GWh anuales de NTL, con una traslación al consumidor final del orden de varios euros por factura. Es decir: el problema justifica de sobra invertir en detección automática, sobre todo si esa detección es barata de ejecutar y respeta la privacidad procesando el dato en el propio contador.
+
+La detección FDI ha pasado por tres generaciones de técnicas. La primera, basada en estadística clásica y \emph{state estimation} con detectores chi-cuadrado, mostró su techo pronto: Liu, Reiter y Ning probaron en 2009 \cite{liu2009fdi} que un atacante que conoce la topología puede construir vectores de ataque indetectables para esos residuales. La segunda generación, en los años 2010, trajo el aprendizaje automático clásico (\textit{Isolation Forest} \cite{liu2008isolation}, \textit{One-Class SVM}, \textit{Local Outlier Factor}) y modelos de regresión para captar desviaciones contextuales \cite{zheng2018wide,messinis2018review}. La generación actual se apoya en aprendizaje profundo: redes recurrentes y, más recientemente, arquitecturas \textit{transformer} para series temporales \cite{vaswani2017attention,nie2023patchtst,wu2023timesnet,xu2022anomaly}.
+
+¿Dónde está, entonces, el hueco que pretende llenar este trabajo? La literatura compara casi siempre dos o tres modelos sobre datasets propios y con métricas que no casan entre sí, lo que hace difícil comparar de verdad. A esto se suman tres ausencias recurrentes: muy pocos artículos prueban a sus detectores contra atacantes que conocen el sistema; la explicabilidad de las decisiones se trata poco, pese a ser una exigencia en infraestructura crítica; y el coste de ejecutar el detector en el \textit{edge}, ahí donde está el contador, suele quedar fuera del análisis. Este TFG aborda los cuatro frentes de forma conjunta.
+
+\begin{figure}[H]
+  \centering
+  \begin{tikzpicture}[
+      node distance=12mm and 14mm,
+      every node/.style={font=\small},
+      box/.style={draw, rounded corners=2pt, minimum height=11mm, minimum width=20mm, align=center, thick},
+      home/.style={box, fill=blue!8},
+      meter/.style={box, fill=green!10, minimum width=24mm},
+      conc/.style={box, fill=orange!12},
+      head/.style={box, fill=red!10, minimum width=24mm},
+      arr/.style={-{Latex[length=2.2mm]}, thick},
+      atk/.style={draw, fill=red!75!black, text=white, font=\footnotesize\bfseries,
+                  rounded corners=2pt, minimum width=18mm, minimum height=6mm}
+  ]
+    \node[home]  (h1) {Vivienda};
+    \node[meter, right=of h1] (m1) {Contador\\\footnotesize\textit{smart meter}};
+    \node[conc, right=of m1]  (c1) {Concentrador\\\footnotesize PLC / GPRS};
+    \node[head, right=of c1]  (op) {Operador\\\footnotesize SCADA / MDM};
+
+    \draw[arr] (h1) -- node[above, font=\scriptsize] {$V, I, P$} (m1);
+    \draw[arr] (m1) -- node[above, font=\scriptsize] {lecturas} (c1);
+    \draw[arr] (c1) -- node[above, font=\scriptsize] {agregado} (op);
+
+    \node[atk] (a1) at ($(m1)!.5!(c1) + (0,-12mm)$) {Ataque FDI};
+    \draw[arr, red!70!black, dashed, very thick]
+      (a1.north) -- ($(m1.south)!.5!(c1.south)$)
+      node[midway, right, font=\scriptsize, red!70!black] {inyección};
+
+    \node[font=\scriptsize, gray, align=center] at ($(op)+(0,-13mm)$)
+      {Facturación · gestión de demanda\\ previsión · liquidación};
+  \end{tikzpicture}
+  \caption{Cadena de medida AMI y vector de ataque FDI a nivel de contador. El atacante manipula la lectura entre el contador y el concentrador; el operador opera sobre datos comprometidos.}
+  \label{fig:ami-fdi}
+\end{figure}
+
+\section{Planteamiento del problema}
+\label{sec:problema}
+
+Formalmente, sea $\bm{x}_t \in \mathbb{R}^d$ el vector de medidas que reporta el contador en el instante $t$ (potencia activa, reactiva, tensión, intensidad y submedidores) e $y_t \in \{0,1\}$ la etiqueta de ataque ---con $y_t=1$ si la lectura $\bm{x}_t$ ha sido manipulada. El problema es estimar $\hat y_t = f(\bm{x}_{t-W+1}, \ldots, \bm{x}_t)$ usando sólo muestras limpias en entrenamiento; es decir, sin que la función $f$ vea pares $(\bm{x}_t, y_t)$ con $y_t=1$.
+
+La dificultad no viene de una sola fuente sino de la combinación de varias. El comportamiento normal del consumo doméstico es ya muy variable de por sí: hay estacionalidad diaria con picos de mañana y noche, semanal entre laborables y fines de semana, y anual marcada por la climatización, todo ello salpicado de ruido y eventos legítimos como una visita o un electrodoméstico de gran potencia. Encima, los ataques pueden ser sutiles: un escalado al 5\,\% bien construido se confunde con la variabilidad natural y resulta indistinguible a simple vista. Tampoco ayuda la ausencia de etiquetas: no hay corpus públicos de FDI reales sobre contadores domésticos, lo que obliga a trabajar de forma no supervisada (o semi-supervisada como mucho). Y todavía falta la restricción de despliegue: el detector tiene que correr con latencia de minutos y caber en la memoria de un dispositivo \textit{edge} o un concentrador embebido, normalmente del orden de decenas o centenares de kB de modelo y milisegundos por muestra.
+
+\section{Objetivos del trabajo}
+\label{sec:objetivos}
+
+\subsection*{Objetivo general}
+
+\noindent\textbf{OG.} Diseñar, implementar y evaluar un sistema de detección no supervisada de ataques de inyección de datos falsos sobre series temporales de contador eléctrico residencial, viable para despliegue en el extremo de la red (\textit{edge computing}).
+
+\subsection*{Objetivos específicos}
+
+Este objetivo general se concreta en siete objetivos específicos, cada uno con un criterio de verificación claro que se retoma en las conclusiones:
+
+\begin{enumerate}[label=\textbf{OE\arabic*.},leftmargin=*,topsep=2pt]
+  \item Caracterizar el conjunto de datos UCI \emph{Individual Household Electric Power Consumption} mediante análisis exploratorio para extraer patrones temporales, calidad y estacionalidades relevantes.
+  \item Diseñar un banco de ataques FDI sintéticos representativo, físicamente plausible y económicamente justificado, con \textit{ground truth} exacto.
+  \item Implementar y comparar, bajo un protocolo de evaluación homogéneo, ocho detectores que cubran el espectro: clásicos (\textit{Isolation Forest}, K-Means+IF), profundos (autoencoders dense, LSTM, CNN, transformer), supervisado (LightGBM como techo), y un \textit{stacking} de los anteriores.
+  \item Incorporar un postprocesado temporal por votación causal que reduzca la tasa de falsos positivos respetando la latencia de despliegue.
+  \item Evaluar la explicabilidad de los detectores con mejor rendimiento mediante valores SHAP, identificando las características clave en la decisión.
+  \item Estimar la generalización del sistema sobre un dominio distinto (UK-DALE) y la robustez frente a atacantes adaptativos que conocen el detector.
+  \item Cuantificar la viabilidad de despliegue en el \textit{edge}: tamaño del modelo, latencia mediana y coste por muestra.
+\end{enumerate}
+
+\section{Metodología y enfoque}
+\label{sec:metodologia}
+
+El trabajo sigue una metodología experimental con ciclos cortos de diseño, implementación y evaluación. Se arrancó con un análisis exploratorio del dataset UCI, se diseñó e implementó el banco de ataques sintéticos, y a continuación se montaron, entrenaron y calibraron los ocho detectores. La evaluación combina una parte cuantitativa bajo protocolo homogéneo ---con énfasis en AUC-PR y en métricas operativas como latencia y tamaño--- y una parte cualitativa centrada en explicabilidad. Cierran el ciclo los análisis críticos de generalización, robustez frente a atacantes adaptativos y viabilidad de despliegue. La memoria y la defensa se redactan en la última fase.
+
+Toda la implementación corre sobre Python 3.11, con TensorFlow 2.18 acelerado vía la API Metal de Apple Silicon (M2 Pro), scikit-learn 1.5 y LightGBM 4.5, encadenados en \textit{notebooks} Jupyter versionados con Git. Los resultados son reproducibles re-ejecutando cada notebook desde la primera celda con \code{nbconvert --execute}, fijando las semillas (test=42, validación=777). El repositorio mantiene la correspondencia uno a uno entre cada notebook numerado y la sección del \cref{cap:diseno} que lo describe.
+
+\section{Estructura del documento}
+\label{sec:estructura}
+
+El resto del documento se organiza en ocho capítulos y un bloque de anexos. El \textbf{Cap.~\ref{cap:estado}} hace un repaso del estado del arte ---ciberseguridad de \textit{smart grids}, detección de anomalías energéticas, taxonomías FDI, explicabilidad y \textit{edge computing}--- y cierra explicitando la brecha que justifica el trabajo. El \textbf{Cap.~\ref{cap:teorico}} cubre los fundamentos teóricos: series temporales, modelos clásicos y profundos (autoencoders, CNN, LSTM, \textit{transformer}), \textit{boosting} y métricas. Los datos y el banco de ataques sintéticos se describen en el \textbf{Cap.~\ref{cap:datos}}, que incluye también el análisis exploratorio, el particionado temporal y la ingeniería de características. El \textbf{Cap.~\ref{cap:diseno}} detalla, para cada uno de los ocho detectores, la arquitectura, el entrenamiento, la calibración del umbral y el postprocesado temporal; sus resultados ---por tipo y severidad de ataque, con SHAP, transferencia a UK-DALE y robustez adversaria--- se discuten en el \textbf{Cap.~\ref{cap:resultados}}. El \textbf{Cap.~\ref{cap:conclusiones}} retoma los objetivos del Cap.~\ref{cap:introduccion} uno a uno para verificar su cumplimiento, reconoce limitaciones y propone líneas futuras. El \textbf{Cap.~\ref{cap:regulador}} cubre el marco regulador (RGPD, NIS2, Ley 8/2011, IEC 62351) y el entorno socioeconómico (presupuesto, planificación e impacto). Los anexos recogen los detalles de implementación, las tablas extendidas y todo lo necesario para reproducir el trabajo.
+
+\noindent Por convención, la memoria usa la primera persona del plural de modestia (\textit{``se ha implementado''}, \textit{``hemos calibrado''}) y mantiene en cursiva los términos técnicos en inglés (\textit{autoencoder}, \textit{stacking}, \textit{transformer}, \textit{edge}, \textit{dataset}\ldots) salvo aquellos ya plenamente asentados en el castellano técnico.

@@ -1,0 +1,247 @@
+% ─────────────────────────────────────────────────────────────────────
+%  Capítulo 5 — Diseño experimental y modelos
+% ─────────────────────────────────────────────────────────────────────
+\chapter{Diseño experimental: modelos}
+\label{cap:diseno}
+
+Este capítulo recorre los ocho detectores uno a uno. Para cada uno explicamos su arquitectura, los hiperparámetros relevantes, por qué se tomaron las decisiones de diseño que se tomaron y cualquier particularidad de entrenamiento o calibración. Las cifras finales no aparecen aquí ---están en el \cref{cap:resultados}---; lo que toca ahora es el \emph{cómo} y el \emph{por qué}, no el \emph{cuánto}.
+
+\section{Visión general del banco}
+\label{sec:vision-general}
+
+\begin{table}[H]
+\centering
+\caption{Banco de los ocho detectores implementados, su familia y notebook asociado.}
+\label{tab:bank-overview}
+\small
+\begin{tabularx}{\textwidth}{l l X l l}
+\toprule
+\# & Detector & Familia metodológica & Supervisión & Notebook \\
+\midrule
+1 & Isolation Forest      & Clásico (aislamiento)              & No supervisado     & NB03  \\
+2 & K-Means + IF          & Clásico (híbrido)                  & No supervisado     & NB03b \\
+3 & Dense Autoencoder     & Profundo (reconstrucción)          & No supervisado     & NB04  \\
+4 & LSTM Autoencoder      & Profundo (recurrente)              & No supervisado     & NB05  \\
+5 & CNN Autoencoder       & Profundo (convolucional)           & No supervisado     & NB07  \\
+6 & Transformer Autoenc.  & Profundo (atención, PatchTST-lite) & No supervisado     & NB08  \\
+7 & LightGBM              & Boosting tabular                   & Supervisado$^*$    & NB09  \\
+8 & Stacking ensemble     & Metamodelo (Meta-LightGBM)         & Mixto              & NB10  \\
+\bottomrule
+\multicolumn{5}{l}{\footnotesize $^*$ LightGBM se usa como techo comparativo, no como detector final propuesto.}
+\end{tabularx}
+\end{table}
+
+Los ocho detectores comparten preprocesado (\cref{sec:features}), particionado (\cref{sec:split}) y protocolo de evaluación (\cref{sec:protocolo}). Lo único que cambia entre ellos es la arquitectura del modelo y su procedimiento de entrenamiento; esto es lo que hace justa la comparación.
+
+\section{Isolation Forest (NB03)}
+\label{sec:nb03}
+
+El primer detector es un \textit{Isolation Forest} entrenado sólo sobre \code{train\_clean} con las 17 características del modo \emph{full}. ¿Por qué \emph{full} y no \emph{base}? Porque el IF no aprende representaciones internas: se conforma con lo que le damos. Las características con motivación física ($\vires$, \code{gap\_intensity\_ratio}, \code{sm\_gap\_ratio}) le dan acceso a información que sería incapaz de extraer por sí solo a partir de las variables crudas.
+
+\paragraph{Configuración.} Tras un proceso de calibración iterativo (vid.\ \cref{cap:resultados}) se eligen los siguientes hiperparámetros:
+
+\begin{itemize}[leftmargin=*,topsep=0pt]
+  \item \code{n\_estimators=600}: número de árboles en el bosque. Más árboles dan estimaciones más estables del \emph{path length} a coste de tiempo de inferencia.
+  \item \code{max\_samples=256}: tamaño del submuestreo por árbol. Es el valor recomendado por los autores originales \cite{liu2008isolation}.
+  \item \code{max\_features=1.0}: usar todas las características en cada split (la aleatorización viene del submuestreo de árboles).
+  \item \code{contamination='auto'}: el algoritmo no asume una proporción de anomalías concreta; el umbral final se elige por calibración en validación, no por la \emph{contamination}.
+  \item \code{random\_state=42}: semilla fija para reproducibilidad.
+\end{itemize}
+
+\paragraph{Postprocesado.} Se aplica votación temporal $W/K$ con búsqueda conjunta sobre $(\tau, W, K)$ en validación. La calibración óptima encontrada queda fijada como parte del modelo entregable.
+
+\section{K-Means + Isolation Forest (NB03b)}
+\label{sec:nb03b}
+
+La idea detrás de este detector es que el consumo doméstico tiene regímenes claramente distinguibles ---día y noche, laborable y festivo, estación del año--- y que un detector especializado por régimen debería capturar la normalidad con más fidelidad que uno global. El procedimiento se desarrolla en tres pasos.
+
+\begin{enumerate}[label=\textbf{\arabic*.},leftmargin=*,topsep=0pt]
+  \item Sobre \code{train\_clean}, se entrena K-Means con un número de \textit{clusters} óptimo por \emph{silhouette} (analizado para $K \in \{2, \ldots, 8\}$).
+  \item Se evalúan dos estrategias:
+    \begin{itemize}[leftmargin=*]
+      \item \textbf{Estrategia A}: un \textit{Isolation Forest} independiente por \textit{cluster}. En inferencia, cada muestra se asigna a su \textit{cluster} más próximo y se le aplica el IF correspondiente.
+      \item \textbf{Estrategia B}: un único \textit{Isolation Forest} global, pero añadiendo como \textit{features} adicionales la distancia normalizada a cada centroide (pertenencia \textit{soft}).
+    \end{itemize}
+  \item Se selecciona automáticamente la estrategia con mayor $F_1$ en validación.
+\end{enumerate}
+
+\paragraph{Ablación del escalado.} Probamos los tres escaladores habituales ---\code{RobustScaler}, \code{MinMaxScaler} y la opción sin escalar--- sobre la estrategia ganadora. La conclusión es que el escalado apenas mueve el rendimiento del IF, lo cual tiene sentido teórico: las divisiones por umbral aleatorio son invariantes a transformaciones monótonas. Lo reportamos así, sin disfrazar el resultado.
+
+\section{Dense Autoencoder (NB04)}
+\label{sec:nb04}
+
+El primer detector profundo es un autoencoder denso ---multi-capa, sin estructura temporal---. La arquitectura, ya en su tercera iteración, es la siguiente:
+
+\begin{center}
+\textsf{Input(17)} $\to$ Dense(64, LeakyReLU) $\to$ Dense(32, LeakyReLU) $\to$ \textbf{Dense(3)} \\
+$\to$ Dense(32, LeakyReLU) $\to$ Dense(64, LeakyReLU) $\to$ Dense(17, linear)
+\end{center}
+
+\paragraph{Decisiones de diseño.}
+\begin{itemize}[leftmargin=*,topsep=0pt]
+  \item \textbf{Bottleneck reducido a 3 dimensiones} (ratio de compresión 17:3): es un cuello de botella agresivo que fuerza al modelo a aprender una representación destilada del comportamiento normal. Bottlenecks mayores son más fáciles de entrenar pero menos sensibles a anomalías.
+  \item \textbf{LeakyReLU con $\alpha=0{,}1$}: evita el problema de \emph{neuronas muertas} de ReLU, especialmente importante con bottleneck pequeño.
+  \item \textbf{Sin BatchNorm}: tras experimentar, se observa que BatchNorm tiende a estabilizar la reconstrucción incluso para entradas anómalas, lo que es contraproducente; queremos que el AE \emph{falle ruidosamente} con ataques.
+  \item \textbf{Salida lineal}: las características escaladas pueden ser negativas, por lo que una sigmoide o ReLU final sería un sesgo no deseado.
+\end{itemize}
+
+\paragraph{Entrenamiento.} Adam con $\mathrm{lr}=5\cdot 10^{-4}$, \emph{batch}=512, \code{EarlyStopping} sobre validación con \emph{patience}=10, y \code{ReduceLROnPlateau} (factor 0{,}5, paciencia 5). El entrenamiento converge típicamente en 60--80 épocas con un tiempo total de unos 12 minutos sobre Apple M2 Pro.
+
+\paragraph{Scoring ponderado.} El \emph{score} de anomalía se calcula con MSE ponderado por característica:
+\begin{equation}
+s(\bm{x}) = \sum_{j=1}^{17} w_j \, (x_j - \hat x_j)^2, \quad w_j \propto \max(\mathrm{AUC}_j - 0{,}5, 0),
+\end{equation}
+donde $\mathrm{AUC}_j$ es el AUC-ROC individual del residual de la $j$-ésima característica calculado sobre validación. Los pesos así obtenidos amplifican el peso de las características más discriminantes (típicamente $\vires$, \code{gap\_intensity\_ratio}, \code{sm\_gap\_ratio}).
+
+\section{LSTM Autoencoder (NB05)}
+\label{sec:nb05}
+
+El detector recurrente se encarga de capturar dependencias temporales a lo largo de la ventana de entrada. Trabajamos con ventanas de 60 minutos ---una hora completa de contexto--- sobre las 17 características escaladas. La primera versión fue muy simple; tras varios ajustes acabamos en un LSTM-AE de dos capas con \textit{bottleneck} estrecho:
+
+\begin{center}
+\textsf{Input(60, 17)} $\to$ LSTM(128, return\_seq=True) $\to$ LSTM(64) \\
+$\to$ \textbf{Dense(8)} $\to$ Dense(64) $\to$ RepeatVector(60) \\
+$\to$ LSTM(64, return\_seq=True) $\to$ LSTM(128, return\_seq=True) $\to$ TimeDistributed(Dense(17, linear))
+\end{center}
+
+\paragraph{Decisiones de diseño.}
+\begin{itemize}[leftmargin=*,topsep=0pt]
+  \item \textbf{Ventana de 60 minutos}: es un compromiso entre contexto suficiente para capturar patrones temporales y latencia/coste de inferencia tolerables.
+  \item \textbf{Stride de entrenamiento = 30 min (50\% overlap)}: duplica los datos de entrenamiento respecto a stride=60, dando al LSTM más variedad de alineamientos temporales.
+  \item \textbf{Stride de evaluación = 1 min}: máxima granularidad de detección. El \emph{score} de cada minuto se obtiene como promedio de los \emph{scores} de las ventanas que lo cubren.
+  \item \textbf{Bottleneck=8}: ratio de compresión 60$\times$17 = 1020 valores $\to$ 8 valores, un factor 127:1. Muy agresivo, pero la estructura temporal de los datos sí lo soporta.
+  \item \textbf{lr=$3\cdot 10^{-4}$ con scheduler}: el LSTM es más sensible al learning rate que el AE denso.
+\end{itemize}
+
+\paragraph{Expansión ventana$\to$minuto por promedio.} Al principio expandíamos el \textit{score} de ventana a minuto por máximo (estilo OR), lo que inflaba muchísimo los falsos positivos: un único pico en una ventana contaminaba los 60 minutos que la componen. Tras cambiar a promedio ---cada minuto recibe la media de los \textit{scores} de las 60 ventanas que lo cubren--- la situación mejora bastante, como discutimos en el \cref{cap:resultados}.
+
+\section{CNN Autoencoder (NB07)}
+\label{sec:nb07}
+
+El autoencoder convolucional aplica convoluciones 1D sobre la dimensión temporal. La arquitectura es:
+
+\begin{center}
+\textsf{Input(60, 14)} $\to$ Conv1D(32, k=5) $\to$ MaxPool(2) $\to$ Conv1D(16, k=3) $\to$ \textbf{Dense bottleneck(8)} \\
+$\to$ Dense $\to$ UpSampling $\to$ Conv1DTranspose $\to$ Output(60, 14)
+\end{center}
+
+\paragraph{Particularidad: un bug que costó descubrir.} La primera versión calculaba los pesos por característica con la fórmula
+\begin{equation*}
+w_j \propto \frac{\mathrm{MSE}_j(\text{train})}{\sum_k \mathrm{MSE}_k(\text{train})},
+\end{equation*}
+que asigna mucho peso a las características que el AE reconstruye mal en datos limpios, no a las realmente discriminantes. El resultado era que el 94\,\% del peso acababa en \code{gap\_diff1}, una característica ruidosa pero sin valor diagnóstico. Sustituida por la fórmula basada en AUC-ROC individual ya descrita para el NB04, el $F_1$ pasó de 0{,}27 a 0{,}43. Lo dejamos documentado tal cual: es un buen ejemplo de iteración crítica y conviene reportar este tipo de cosas con transparencia.
+
+\paragraph{Optimización Metal.} La implementación está optimizada para Apple Silicon: \emph{pipeline} \code{tf.data} con \emph{prefetch}, \emph{batch} grande (1024), sin \code{mixed\_float16} (incompatible con Metal) y sin XLA (no soportado por la API Metal). El entrenamiento completo ocupa unos 7 minutos.
+
+\section{Transformer Autoencoder (NB08)}
+\label{sec:nb08}
+
+El miembro más moderno del banco es un Transformer-AE, en variante PatchTST-lite. Sobre las ventanas de 60 minutos, troceamos la serie en \textit{patches} no solapados de longitud $P=5$, lo que da 12 \textit{tokens} por ventana. Cada \textit{token} es un vector de $P \cdot 14 = 70$ valores, que se proyecta linealmente al espacio de \textit{embedding}:
+
+\begin{center}
+\textsf{Input(60, 14)} $\to$ Patchify(P=5) $\to$ \textbf{(12, 70)} $\to$ Linear(\textit{d\_model}=64) \\
+$\to$ + Positional Encoding (learned) $\to$ [Transformer Block]$\times$2 $\to$ MLP decoder $\to$ Output(12, 70) $\to$ Unpatchify
+\end{center}
+
+donde cada bloque Transformer es:
+\begin{center}
+LayerNorm $\to$ MultiHeadAttention(H=4) $\to$ residual \\
+LayerNorm $\to$ FFN(128, GELU) $\to$ residual
+\end{center}
+
+\paragraph{Decisiones de diseño.}
+\begin{itemize}[leftmargin=*,topsep=0pt]
+  \item \textbf{Pre-LayerNorm} (en lugar de Post-LN del transformer original): facilita la convergencia y reduce la sensibilidad al \emph{learning rate}.
+  \item \textbf{Pequeño deliberadamente}: $d_{\mathrm{model}}=64$, 2 bloques, 4 cabezas, 78\,k parámetros totales. Esto mantiene el modelo entrenable en minutos en Apple Silicon y desplegable en \textit{edge}.
+  \item \textbf{Codificación posicional aprendida}: un \textit{embedding} entrenable por posición, suficiente al haber pocos \textit{tokens} (12).
+  \item \textbf{Scoring por patch}: la atribución del score a cada \emph{patch} permite localizar dónde dentro de la ventana de 60 minutos se concentra la anomalía.
+\end{itemize}
+
+\section{LightGBM (NB09): techo supervisado}
+\label{sec:nb09}
+
+LightGBM cumple aquí un papel distinto al resto: sirve de techo comparativo. A diferencia de los detectores anteriores, este \textit{sí} ve etiquetas de ataque durante el entrenamiento. Conviene insistir en este punto para evitar malentendidos: \textbf{LightGBM no es el detector final propuesto}, sino la referencia que necesitamos para cuantificar el rendimiento máximo alcanzable con los datos disponibles y, por contraste, cuánto se pierde por renunciar a las etiquetas (que es justo lo que motiva todo el TFG).
+
+\paragraph{Configuración.}
+\begin{itemize}[leftmargin=*,topsep=0pt]
+  \item \code{objective='binary'}, \code{metric='auc'}.
+  \item \code{learning\_rate=0.02}, \code{num\_leaves=127}, \code{max\_depth=12}, \code{min\_data\_in\_leaf=20}.
+  \item \code{feature\_fraction=0.85}, \code{bagging\_fraction=0.8}, \code{bagging\_freq=5}.
+  \item \code{is\_unbalance=True} para manejar el desbalanceo natural del dataset.
+  \item \code{num\_boost\_round=5000} con \code{early\_stopping(100)}.
+  \item \code{num\_threads=10} (todos los cores del M2 Pro).
+\end{itemize}
+
+\paragraph{Esquema de entrenamiento.} Sobre las 27 características del modo \emph{full} extendido (con \emph{lags} y \emph{rolling stats}), se entrena con el 80\% inicial de \code{val\_with\_attacks} y se valida con el 20\% restante para \emph{early stopping}. La calibración final del umbral se hace sobre el total de \code{val} y se evalúa sobre \code{test}.
+
+\paragraph{Características añadidas (modo \emph{full} extendido).} Se introducen 10 características adicionales específicas para el modelo supervisado:
+\begin{itemize}[leftmargin=*,topsep=0pt]
+  \item \emph{Lags}: \code{gap\_lag1}, \code{gap\_lag5}.
+  \item \emph{Diferencias largas}: \code{gap\_diff5}, \code{gap\_diff15}.
+  \item \emph{Rolling stats}: \code{gap\_roll5\_mean}, \code{gap\_roll5\_std}, \code{gap\_roll30\_mean}, \code{gap\_roll30\_std}.
+  \item \emph{Volatilidad eléctrica}: \code{v\_roll5\_std}, \code{i\_roll5\_std}.
+\end{itemize}
+
+\section{Stacking ensemble (NB10)}
+\label{sec:nb10}
+
+El \textit{stacking} combina varios detectores base por medio de un meta-learner. La intuición detrás es que las cuatro familias fallan de manera distinta ---el IF aísla, el AE reconstruye, la CNN mira patrones locales, el Transformer dependencias globales--- y, por tanto, un \textit{ensemble} sobre todas ellas debería superar a cualquier detector individual.
+
+\paragraph{Procedimiento sin fuga.}
+\begin{enumerate}[label=\textbf{\arabic*.},leftmargin=*,topsep=0pt]
+  \item Los detectores base se entrenan sobre \code{train\_clean} (no ven validación ni test).
+  \item Cada detector base produce un \emph{score} de anomalía sobre \code{val\_with\_attacks} y \code{test\_with\_attacks}.
+  \item Los \emph{scores} se estandarizan por z-score usando estadísticos calculados solo sobre la parte limpia de \code{val} (sin fuga).
+  \item Se forma una matriz $S_{\mathrm{val}} \in \mathbb{R}^{|\mathrm{val}| \times M}$ donde $M$ es el número de detectores base.
+  \item El meta-learner se entrena sobre $(S_{\mathrm{val}}, y_{\mathrm{val}})$ y se evalúa sobre $(S_{\mathrm{test}}, y_{\mathrm{test}})$.
+\end{enumerate}
+
+\paragraph{Cuatro estrategias evaluadas.}
+\begin{itemize}[leftmargin=*,topsep=0pt]
+  \item \textbf{Mean blending}: $\hat s = \frac{1}{M}\sum_m s_m$. Línea base más simple.
+  \item \textbf{Weighted blending}: $\hat s = \sum_m w_m s_m$ con $\bm{w}$ optimizado por búsqueda en rejilla discreta sobre el simplex.
+  \item \textbf{Meta-LR}: regresión logística sobre $S$, balanceada por clase.
+  \item \textbf{Meta-LightGBM}: LightGBM ligero (\code{num\_leaves=15, max\_depth=4, min\_data\_in\_leaf=100}) sobre $S$. Captura interacciones no lineales entre detectores.
+\end{itemize}
+
+La estrategia ganadora se selecciona por $\aucpr$ en validación. En la práctica, el Meta-LightGBM gana de forma consistente.
+
+\paragraph{¿Por qué LightGBM no entra en el \textit{stack}?} Aunque LightGBM (NB09) es el mejor detector individual, meterlo en el \textit{stacking} sería metodológicamente sucio: el sistema final que proponemos debe ser no supervisado, y un \textit{ensemble} que incluyera un modelo supervisado heredaría su dependencia de etiquetas. Por eso el \textit{stacking} se monta exclusivamente sobre los seis detectores no supervisados (IF, K-Means+IF, Dense-AE, LSTM-AE, CNN-AE y Transformer-AE).
+
+\section{Resumen de hiperparámetros}
+
+\begin{table}[H]
+\centering
+\caption{Tabla compacta de hiperparámetros clave por detector.}
+\label{tab:hparams}
+\footnotesize
+\begin{tabularx}{\textwidth}{l X}
+\toprule
+Detector & Hiperparámetros relevantes \\
+\midrule
+IF (NB03)              & n\_estimators=600, max\_samples=256, features=full (17), seed=42 \\
+KMeans+IF (NB03b)      & K seleccionado por silhouette (K=3), estrategia A o B por validación \\
+Dense-AE (NB04)        & 64-32-3-32-64, LeakyReLU $\alpha$=0.1, Adam lr=5e-4, batch=512, MSE ponderado \\
+LSTM-AE (NB05)         & Window=60 min (stride 30 train / 1 eval), 128-64-Dense(8)-64-128, lr=3e-4 \\
+CNN-AE (NB07)          & Conv1D(32,k=5)–Pool–Conv1D(16,k=3)–Dense(8), batch=1024 \\
+Transformer-AE (NB08)  & PatchTST-lite, P=5, d=64, H=4, 2 bloques, GELU, Pre-LN, learned PE \\
+LightGBM (NB09)        & lr=0.02, leaves=127, depth=12, min\_data=20, scale\_pos via is\_unbalance \\
+Stacking (NB10)        & Meta-LightGBM lite sobre Z-scores de 6 detectores base no supervisados \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\section{Ampliación: experimentos de frontera (NB15--NB20)}
+\label{sec:diseno-ampliacion}
+
+Los cinco experimentos de la ampliación reutilizan el \emph{mismo} contrato de datos y protocolo de evaluación de los detectores anteriores (módulo común \code{tfg\_common}): entrenamiento sobre \code{train\_clean}, calibración de umbral y de $(W,K)$ \emph{solo} en validación, y métricas $\fone/\ftwo$, $\aucroc$, $\aucpr$ y latencia por episodio. Las implementaciones son autocontenidas en TensorFlow/NumPy, sin dependencias externas frágiles.
+
+\paragraph{VAE probabilístico (NB15).} $\beta$-VAE denso con latente de dimensión 4 y $\beta=1$, mismo \emph{footprint} que el Dense-AE. El \textit{score} es la probabilidad de reconstrucción estimada con $L=20$ muestras Monte Carlo; su desviación típica define la incertidumbre. La calibración probabilística se evalúa con regresión isotónica ajustada en validación y un \emph{reliability diagram} (ECE) en test.
+
+\paragraph{Difusión (NB16).} DDPM 1D con $T=50$ pasos sobre ventanas de 48\,min del GAP limpio. Se mide el realismo de las muestras generadas (coeficiente de Bhattacharyya y ACF), se evalúa el DDPM como detector por \emph{denoising} ($t^*=20$) frente a un AE de ventana, y se sintetiza un banco \emph{diffusion-FDI} complementario (ataques sobre portadoras generadas) guardado aparte del banco oficial.
+
+\paragraph{Federated + DP (NB17).} Partición no-IID en 6 clientes por bloques temporales. FedAvg con 15 rondas y 1 época local; línea base centralizada para referencia. DP-SGD con recorte de gradiente por-ejemplo ($C=1$) y barrido de multiplicador de ruido $\sigma\in\{0{,}6,1{,}0,1{,}5,2{,}5\}$; el presupuesto $(\varepsilon,\delta{=}10^{-5})$ se contabiliza con RDP del mecanismo gaussiano submuestreado (\cref{eq:rdp}).
+
+\paragraph{Robustez adversaria (NB18).} Ataques de caja blanca FGSM, PGD (20 iteraciones) y C\&W sobre el \textit{score} del Dense-AE, con perturbación $\ell_\infty$ enmascarada (las features de reloj quedan congeladas). Se barre $\epsilon\in[0,1{,}2]$ midiendo la tasa de detección, se reentrena con \emph{adversarial training} y se mide la transferibilidad del ataque entre dos detectores independientes para cuantificar el efecto \emph{ensemble}.
+
+\paragraph{Compresión edge (NB19).} PTQ con \code{TFLiteConverter} (float16, \emph{dynamic-range} int8 y \emph{full-integer} int8 con dataset representativo) y \emph{pruning} por magnitud a sparsities del 50--90\,\% con re-ajuste. Se reportan tamaño \code{.tflite}, tamaño comprimido (gzip), latencia y $\fone$, y la frontera de Pareto tamaño--$\fone$.

@@ -1,0 +1,84 @@
+% ─────────────────────────────────────────────────────────────────────
+%  Capítulo 7 — Conclusiones y líneas futuras
+% ─────────────────────────────────────────────────────────────────────
+\chapter{Conclusiones y líneas futuras}
+\label{cap:conclusiones}
+
+Toca cerrar el documento. Lo hacemos retomando los objetivos que dejamos enunciados en el \cref{cap:introduccion}, repasando con honestidad las limitaciones del trabajo y proponiendo algunas líneas futuras concretas sobre las que merecería la pena seguir.
+
+\section{Cumplimiento de los objetivos}
+\label{sec:cumplimiento}
+
+Repasemos uno a uno los siete objetivos específicos planteados en el \cref{sec:objetivos}.
+
+\paragraph{OE1. Caracterizar el conjunto de datos UCI.}
+Hecho. El \cref{sec:eda} resume los hallazgos del análisis exploratorio ---estacionalidades diaria, semanal y anual, autocorrelación, correlaciones entre variables y validación empírica de la invariante $\mathrm{P} \approx V \cdot I / 1000$--- y de ahí salen las decisiones posteriores sobre características y tamaño de ventana.
+
+\paragraph{OE2. Diseñar un banco de ataques FDI sintéticos.}
+También hecho. El \cref{sec:banco-ataques} documenta los siete tipos de ataque organizados en cuatro categorías mecánicas (magnitud, temporal, patrón y físico) y tres niveles de severidad calibrados por umbral económico. El banco final contiene 840 episodios en test y 196 en validación, con duraciones de 45 a 180 minutos y semillas fijas para garantizar reproducibilidad.
+
+\paragraph{OE3. Implementar y comparar detectores bajo protocolo homogéneo.}
+Cumplido. Los ocho detectores están descritos en el \cref{cap:diseno} y la \textit{tabla maestra} del \cref{sec:resultados-individuales} los pone en común. La comparación es justa porque todos comparten preprocesado, particionado, calibración y métricas. El resultado de cabecera es claro: el Dense-AE no supervisado alcanza $\fone=0{,}816$ y $\aucpr=0{,}855$, frente a los $\fone=0{,}910$ y $\aucpr=0{,}941$ del techo supervisado (LightGBM).
+
+\paragraph{OE4. Postprocesado temporal.}
+Cumplido sin sorpresas. El filtro $W/K$ por votación causal está descrito en \cref{sec:protocolo} y su efecto cuantificado en \cref{sec:resultados-temporal}: muy notable en los detectores clásicos ---que producen ráfagas de positivos ruidosos--- y bastante modesto en los AE profundos.
+
+\paragraph{OE5. Stacking ensemble.}
+Cumplido pero con matices. Probamos cuatro estrategias (\textit{mean}, \textit{weighted}, Meta-LR y Meta-LightGBM) y se impone la cuarta. Eso sí, en test no logra superar al mejor detector individual, algo que ya discutimos en el \cref{sec:resultados-ensemble}: la correlación de errores entre detectores base, sobre todo en los ataques difíciles, deja al \textit{ensemble} sin margen de mejora.
+
+\paragraph{OE6. Explicabilidad, generalización y robustez.}
+Los tres análisis están cubiertos. SHAP (\cref{sec:resultados-shap}) confirma que el modelo aprende la física del problema; la transferencia a UK-DALE (\cref{sec:resultados-crossdomain}) muestra una caída esperable pero recuperable con recalibración; y el estudio adversario (\cref{sec:resultados-adversarial}) deja la frontera económica de detección en torno al 10--15\,\% de reducción del consumo.
+
+\paragraph{OE7. Viabilidad \textit{edge}.}
+Cumplido. El \cref{sec:resultados-edge} cuantifica tamaño, latencia y coste por muestra. Lo operativo: el Dense-AE (134\,kB, $<$1\,\si{\milli\second}/muestra) es desplegable en cualquier microcontrolador ARM Cortex-M con 256\,kB de memoria.
+
+\paragraph{Objetivo general (OG).}
+Si los siete específicos están cubiertos, el general también lo está. El sistema que proponemos al final es un Dense-AE no supervisado con MSE ponderado, calibración \textit{joint} de umbral y filtro $W/K$, y como opción una segunda capa basada en $\vires$ que actúa como detector físico independiente del modelo aprendido. Las cifras conseguidas son competitivas con el estado del arte para el problema en condiciones realmente restrictivas: no supervisado y desplegable en \textit{edge}.
+
+\section{Hallazgos principales}
+
+Por encima de los objetivos uno a uno, hay tres hallazgos transversales que conviene dejar dichos. El primero es que \textbf{$\vires$ ha sido la pieza más valiosa del trabajo}: es la única que permite detección independiente del modelo de comportamiento del usuario, vale para cualquier vivienda con instrumentación V--I y es interpretable físicamente; los resultados de SHAP no hacen más que confirmar ese papel preponderante. El segundo es que \textbf{la calibración del umbral y del filtro temporal pesa tanto como la arquitectura del modelo}: el caso del LSTM-AE lo ilustra bien, porque un modelo internamente fuerte queda muy lastrado por una calibración por defecto inadecuada; la búsqueda \textit{joint} sobre $(\tau, W, K)$ debería ser práctica estándar y no un extra. Y el tercero es que \textbf{el techo no supervisado se queda unos 9 puntos de $\fone$ por debajo del supervisado}: en un escenario realista, sin corpus de ataques etiquetados, esa brecha es el coste de la realidad. La tesis que defiende este TFG es que el coste es aceptable, y que reducirlo exigiría un esfuerzo de etiquetado difícil de replicar.
+
+\section{Ampliación: técnicas de frontera implementadas}
+\label{sec:ampliacion-conclusiones}
+
+Varias de las líneas que en una primera versión de este trabajo quedaban como propuestas se han llevado a la práctica, desplazando el TFG desde un comparador de detectores hacia un \emph{sistema} evaluado en los ejes que exige la infraestructura crítica (detalle cuantitativo en \cref{sec:resultados-ampliacion}):
+
+\begin{itemize}[leftmargin=*,topsep=2pt]
+  \item \textbf{Incertidumbre (VAE).} Un $\beta$-VAE con \emph{probabilidad de reconstrucción} (\cref{sec:teo-vae}) acompaña cada alarma de una banda de confianza, habilitando el triaje operativo que la salida binaria no permitía.
+  \item \textbf{Modelos generativos (difusión).} Un DDPM (\cref{sec:teo-ddpm}) entrenado sobre consumo limpio genera ataques sobre portadoras realistas ---no copiadas--- y funciona como detector por \emph{denoising}, atacando la limitación de un banco puramente paramétrico.
+  \item \textbf{Privacidad (federated + DP).} FedAvg entrena sin centralizar datos y DP-SGD añade una garantía formal $(\varepsilon,\delta)$ con contabilidad RDP (\cref{sec:teo-feddp}), alineando el sistema con el RGPD a escala nacional.
+  \item \textbf{Robustez adversaria.} Ataques de gradiente FGSM/PGD/C\&W y \emph{adversarial training} (\cref{sec:teo-adv}) sustituyen la búsqueda en rejilla; se cuantifica además cómo el \emph{ensemble} encarece la evasión.
+  \item \textbf{Eficiencia \textit{edge} real.} Cuantización int8 y \emph{pruning} (\cref{sec:teo-comp}) miden la compresión efectiva y la latencia, convirtiendo la viabilidad \textit{edge} de promesa en dato.
+\end{itemize}
+
+\section{Limitaciones}
+\label{sec:limitaciones}
+
+No conviene cerrar sin reconocer las limitaciones del trabajo, que son varias. La primera es la naturaleza \textbf{sintética del banco de ataques}: aunque está físicamente bien fundado y económicamente calibrado, no sustituye a un corpus de ataques reales, y un atacante humano podría idear patrones sutiles que aquí no hemos contemplado. Una segunda es que el conjunto UCI corresponde a \textbf{una única vivienda}; la generalización está parcialmente evaluada con UK-DALE, pero un estudio multi-vivienda con datos reales daría mucha más solidez a las conclusiones. Está también la cuestión del \textbf{modelo de amenaza}: asumimos que el atacante no controla la corriente ni los submedidores, pero un atacante con acceso físico al contador podría falsearlo todo, anular $\vires$ y reducir el problema a detección puramente conductual.
+
+En cuanto a la \textbf{transferencia cross-domain}, la evaluación sobre UK-DALE adapta los ataques de forma aproximada (la frecuencia de muestreo difiere y $\vires$ hay que estimarlo); un estudio más sistemático necesitaría datasets adicionales. Dos frentes que en una primera versión quedaban abiertos ---la \textbf{compresión post-hoc} y la ausencia de \textbf{estimación de incertidumbre}--- se han abordado en la ampliación (\cref{sec:ampliacion-conclusiones,sec:resultados-ampliacion}) mediante cuantización/\textit{pruning} y el VAE probabilístico, respectivamente; aun así, su validación a escala completa y sobre hardware real sigue siendo trabajo pendiente. Conviene también ser explícito sobre el alcance de la ampliación: los experimentos de aprendizaje federado y DP usan heterogeneidad \emph{simulada} por bloques temporales y submuestreo por tractabilidad, y los ataques adversarios operan sobre el espacio de características escalado; ambos son demostraciones metodológicamente válidas, no despliegues a escala.
+
+\section{Líneas futuras}
+\label{sec:lineas-futuras}
+
+Tras la ampliación, varias de las líneas que inicialmente apuntábamos están ya \textbf{implementadas} (\cref{sec:ampliacion-conclusiones}): la síntesis generativa de ataques con difusión, los ataques adversarios de gradiente, la detección distribuida con privacidad y la compresión post-entrenamiento. Las líneas que siguen abiertas, junto a las nuevas que la propia ampliación destapa, son:
+
+\begin{enumerate}[label=\textbf{LF\arabic*.},leftmargin=*,topsep=2pt]
+  \item[\textbf{LF1.}] \textbf{Validación con ataques reales} (\emph{parcial}). La síntesis con difusión (\cref{sec:resultados-ampliacion}) ya enriquece el banco con portadoras realistas; falta el acceso a incidentes históricos reales vía una distribuidora.
+  \item[\textbf{LF2.}] \textbf{Fine-tuning a un dominio nuevo con pocos datos limpios.} El experimento de UK-DALE sugiere que basta recalibrar; formalizarlo como adaptación con pocos minutos de datos limpios del nuevo dominio sigue pendiente.
+  \item[\textbf{LF3.}] \textbf{Ataques adversarios de gradiente} (\emph{hecho}). Implementados FGSM/PGD/C\&W y \emph{adversarial training}; la extensión natural es propagar la perturbación desde las medidas crudas a través del \emph{feature engineering}.
+  \item[\textbf{LF4.}] \textbf{Aprendizaje continuo / adaptación a la deriva.} Un detector entrenado con datos de 2007 puede degradarse ante consumo de 2025 (autoconsumo solar, vehículo eléctrico); un esquema de \emph{continual learning} con detección de \textit{drift} sería valioso.
+  \item[\textbf{LF5.}] \textbf{Generación automática de informes de incidente.} Tras una alarma, un modelo de lenguaje ligero podría resumir el incidente (tipo de ataque, características vía SHAP, ventana afectada), conectando el detector con el operador humano.
+  \item[\textbf{LF6.}] \textbf{Despliegue real sobre dispositivo \emph{edge}.} La cuantización ya entrega un modelo $<$50\,kB; queda flashearlo en Raspberry Pi / ESP32 (TFLite-Micro) y medir consumo energético real (mWh/muestra).
+  \item[\textbf{LF7.}] \textbf{Detección distribuida con privacidad} (\emph{hecho}). FedAvg + DP-SGD implementados; el siguiente paso es un despliegue federado real multi-vivienda con clientes heterogéneos no simulados.
+  \item[\textbf{LF8.}] \textbf{Compresión y cuantización} (\emph{hecho}). Medidas int8 y \emph{pruning}; queda el \emph{quantization-aware training} para recuperar la pérdida residual.
+  \item[\textbf{LF9.}] \textbf{Detección a nivel de concentrador con GNN.} Modelar la topología de la red AMI con \emph{graph neural networks} permitiría detectar ataques coordinados entre contadores, no solo por contador.
+  \item[\textbf{LF10.}] \textbf{Modelos fundacionales de series temporales.} Evaluar \emph{time-series foundation models} (p.\,ej. Lag-Llama \cite{rasul2024lagllama}) en régimen \emph{zero-shot} o con \emph{fine-tuning} ligero como detectores universales.
+\end{enumerate}
+
+\section{Reflexión final}
+
+Este TFG ha mostrado que se pueden detectar ataques de inyección de datos falsos sobre series temporales de consumo eléctrico residencial sin necesidad de etiquetas reales de ataque, con un rendimiento competitivo y con un coste de cómputo compatible con \textit{edge}. A lo largo del camino, $\vires$ ha terminado emergiendo como pieza clave: conecta directamente el detector con la física del problema y ofrece una segunda capa de detección independiente del modelo aprendido. El \textit{stacking}, por su parte, no ha dado el salto cualitativo que se esperaba, pero el análisis honesto de por qué ---la correlación de errores entre detectores base--- es por sí mismo un resultado útil para trabajos posteriores.
+
+Al final, la propuesta del TFG es \emph{operativa}: un Dense Autoencoder de 134\,kB que se ejecuta sobre cualquier microcontrolador moderno, combinado con un detector físico basado en $\vires$ y un postprocesado temporal $W/K$. La integración en hardware existente es modesta y el coste energético, despreciable. Más que una demostración académica, lo que queda es un sistema potencialmente desplegable.
