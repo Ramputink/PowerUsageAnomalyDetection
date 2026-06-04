@@ -42,3 +42,7 @@ UCIrvine/Analisis1st_Attempt/*.h5
 # ───  Carpetas de notas personales (no se trackean, solo notebooks) ─
 obsidian_energy_notes/
 Papers/
+
+# ─── No subir: borrador propio (se sube TFG_202526) y config local ─
+memoria_latex/
+.claude/

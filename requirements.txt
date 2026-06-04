@@ -21,3 +21,17 @@ jupyter==1.1.1
 ipykernel==6.29.5
 notebook==7.3.2
 tqdm==4.67.1
+nbformat==5.10.4          # generación programática de los notebooks de la ampliación
+
+# ═══════════════════════════════════════════════════════════
+# Ampliación NB15-NB20 (modelos generativos, federated/DP,
+# robustez adversaria, compresión edge).
+#   * NO requiere dependencias nuevas: VAE/DDPM en Keras,
+#     FedAvg y DP-SGD manuales (contabilidad RDP con scipy),
+#     FGSM/PGD/C&W con tf.GradientTape, y PTQ con el
+#     TFLiteConverter integrado en TensorFlow.
+#   * shap==0.46.0 ya se usaba en NB12.
+# Decisión: evitar torch/flwr/tensorflow-privacy/tfmot, que en
+# Apple Silicon + TF 2.18 instalan de forma frágil. Todo queda
+# reproducible con el mismo entorno.
+# ═══════════════════════════════════════════════════════════
