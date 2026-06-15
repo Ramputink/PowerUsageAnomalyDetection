@@ -1,10 +1,11 @@
 """
-regen_val_scores.py — Regenera scores de VALIDACION (y TEST) para los detectores
-point-wise desde los modelos guardados, para poder recalibrar el umbral SOLO en
-validacion (protocolo correcto, sin fuga de test) en NB11.
+regen_val_scores.py — Regenerates VALIDATION (and TEST) scores for the point-wise
+detectors from the saved models, so the threshold can be recalibrated ONLY on the
+validation set (correct protocol, with no test leakage) in NB11.
 
-Verifica cada regeneracion comparando el score de TEST recreado contra la columna
-de score ya guardada en predictions_*.csv. Solo se confia en los que validan.
+Each regeneration is verified by comparing the recreated TEST score against the
+score column already stored in predictions_*.csv. Only the ones that validate are
+trusted.
 """
 import os, json, warnings
 import numpy as np
@@ -26,7 +27,7 @@ y_test = df_test['label'].values
 results = {}   # name -> dict(val=..., test=..., verify_corr=...)
 
 def verify(name, test_scores, pred_file, score_col):
-    """Correlacion entre score recreado y guardado (alineado por longitud)."""
+    """Correlation between recreated and saved scores (aligned by length)."""
     p = os.path.join(DATA, pred_file)
     saved = pd.read_csv(p, usecols=[score_col])[score_col].values
     n = min(len(saved), len(test_scores))
@@ -50,7 +51,7 @@ except Exception as e:
     print('  [IF] ERROR', e)
 
 # --------------------------------------------------------------------- #
-# 2) KMEANS + IF  (estrategia A: IF por cluster, 17 full)
+# 2) KMEANS + IF  (strategy A: one IF per cluster, 17 full)
 # --------------------------------------------------------------------- #
 try:
     sc = joblib.load(os.path.join(DATA, 'scaler_kmeans_if.pkl'))
@@ -85,7 +86,7 @@ try:
     def dae_score(X):
         rec = ae.predict(X, batch_size=8192, verbose=0)
         se = (rec - X) ** 2
-        # probar dos convenciones y quedarnos con la que valide
+        # try both conventions and keep the one that validates
         return (se * w).sum(axis=1), np.average(se, axis=1, weights=w)
     sv_sum, sv_avg = dae_score(M['X_val'])
     st_sum, st_avg = dae_score(M['X_test'])
@@ -99,7 +100,7 @@ except Exception as e:
     print('  [Dense-AE] ERROR', e)
 
 # --------------------------------------------------------------------- #
-# 4) LIGHTGBM  (27 features con lags, pipeline propio de NB09)
+# 4) LIGHTGBM  (27 features with lags, NB09's own pipeline)
 # --------------------------------------------------------------------- #
 def lgb_features(df):
     f = df[FCOLS].copy()
@@ -139,12 +140,12 @@ except Exception as e:
     print('  [LightGBM] ERROR', e)
 
 # --------------------------------------------------------------------- #
-# Guardar scores verificados (corr > 0.99)
+# Save verified scores (corr > 0.99)
 # --------------------------------------------------------------------- #
-print('\n=== RESUMEN VERIFICACION ===')
+print('\n=== VERIFICATION SUMMARY ===')
 ok = {}
 for name, r in results.items():
-    status = 'OK' if r['corr'] > 0.99 else 'DUDOSO'
+    status = 'OK' if r['corr'] > 0.99 else 'DOUBTFUL'
     print(f'  {name:14s} corr={r["corr"]:.4f}  -> {status}')
     if r['corr'] > 0.99:
         ok[name] = r
@@ -153,4 +154,4 @@ for name, r in results.items():
 
 np.save(os.path.join(DATA, 'y_val_aligned.npy'), y_val)
 np.save(os.path.join(DATA, 'y_test_aligned.npy'), y_test)
-print(f'\nDetectores verificados y guardados: {list(ok.keys())}')
+print(f'\nVerified and saved detectors: {list(ok.keys())}')
