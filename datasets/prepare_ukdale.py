@@ -1,14 +1,14 @@
 """
-prepare_ukdale.py — Genera el subconjunto procesado de UK-DALE para NB13.
+prepare_ukdale.py — Builds the processed UK-DALE subset used by NB13.
 
-UK-DALE crudo pesa ~112 GB (16 kHz + canales de electrodomésticos). Para la
-detección de FDI sobre consumo AGREGADO solo se necesita el `mains` (channel_1)
-de cada casa, resampleado a 1 minuto. Este script extrae ese subconjunto
-(unos pocos MB) de las 5 casas y lo guarda como parquet, reproducible y subible
-a GitHub. El crudo NO se versiona (ver datasets/README.md para descargarlo).
+The raw UK-DALE dataset is ~112 GB (16 kHz + per-appliance channels). For FDI
+detection on the AGGREGATE consumption only the `mains` signal (channel_1) of
+each house is needed, resampled to 1 minute. This script extracts that subset
+(a few MB) from the 5 houses and saves it as a reproducible, GitHub-uploadable
+file. The raw data is NOT versioned (see datasets/README.md to download it).
 
-Uso:  python prepare_ukdale.py
-Salida: data/ukdale_multihouse_1min.parquet  (columnas: house, Global_active_power[kW])
+Usage:  python prepare_ukdale.py
+Output: data/ukdale_multihouse_1min.csv.gz  (columns: house, Global_active_power[kW])
 """
 import os, time
 import numpy as np
@@ -19,7 +19,7 @@ OUT = '/Volumes/Extreme Pro Particion 1TB/TFG/UCIrvine/data/ukdale_multihouse_1m
 HOUSES = [1, 2, 3, 4, 5]
 
 def load_mains_1min(house):
-    """channel_1.dat = mains agregado (unix_ts watts, 6 s) -> 1 min mean en kW."""
+    """channel_1.dat = aggregate mains (unix_ts watts, 6 s) -> 1 min mean in kW."""
     path = os.path.join(UKDALE_ROOT, f'house_{house}', 'channel_1.dat')
     df = pd.read_csv(path, sep=' ', header=None, names=['ts', 'watts'])
     df['datetime'] = pd.to_datetime(df['ts'], unit='s')
@@ -40,4 +40,4 @@ for h in HOUSES:
 full = pd.concat(frames, ignore_index=True)
 full.to_csv(OUT, index=False, compression='gzip')
 mb = os.path.getsize(OUT) / 1048576
-print(f'\nGuardado: {OUT}  ({mb:.1f} MB, {len(full):,} filas, {full.house.nunique()} casas)')
+print(f'\nSaved: {OUT}  ({mb:.1f} MB, {len(full):,} rows, {full.house.nunique()} houses)')

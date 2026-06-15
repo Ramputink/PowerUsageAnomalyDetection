@@ -1,42 +1,42 @@
 # Datasets
 
-Este proyecto usa tres datasets de consumo eléctrico. **Los ficheros crudos NO se versionan en Git** (son muy grandes y/o están disponibles públicamente en su fuente oficial). En su lugar se versiona un **subconjunto procesado y comprimido** suficiente para reproducir todos los notebooks, y aquí se documenta cómo obtener/regenerar el resto.
+This project uses three electricity-consumption datasets. **The raw files are NOT versioned in Git** (they are too large and/or are publicly available from their official source). Instead, a **processed and compressed subset** large enough to reproduce all the notebooks is versioned, and this file documents how to obtain/regenerate the rest.
 
-| Dataset | Uso en el TFG | Crudo | En el repo |
+| Dataset | Use in the thesis | Raw | In the repo |
 |---|---|---|---|
-| **UCI Household Power Consumption** | Entrenamiento + evaluación (principal) | ~130 MB (externo) | Splits procesados `.csv.gz` |
-| **UK-DALE** | Validación cross-domain (NB13) | ~112 GB (externo) | `ukdale_multihouse_1min.csv.gz` |
-| **REFIT (UKREFIT)** | Descartado (no usado) | ~6 GB (externo) | — |
+| **UCI Household Power Consumption** | Training + evaluation (main) | ~130 MB (external) | Processed splits `.csv.gz` |
+| **UK-DALE** | Cross-domain validation (NB13) | ~112 GB (external) | `ukdale_multihouse_1min.csv.gz` |
+| **REFIT (UKREFIT)** | Discarded (not used) | ~6 GB (external) | — |
 
 ---
 
-## 1. UCI Individual Household Electric Power Consumption (principal)
+## 1. UCI Individual Household Electric Power Consumption (main)
 
-Vivienda en Sceaux (Francia), 2006–2010, resolución 1 minuto. Es el dataset sobre el que se **entrena** el digital de detección y se **inyectan** los 7 ataques FDI.
+A household in Sceaux (France), 2006–2010, 1-minute resolution. This is the dataset on which the detection pipeline is **trained** and onto which the 7 FDI attacks are **injected**.
 
-- **Fuente oficial:** https://archive.ics.uci.edu/dataset/235/individual+household+electric+power+consumption
-- **Crudo (no versionado):** `household_power_consumption.txt`. Descárgalo del enlace y colócalo en `UCIrvine/`.
-- **Regenerar desde el crudo:** ejecutar `01_HouseholdAnalisis.ipynb` (limpieza → `uci_clean_full.csv`) y luego `02_FDI_Injection.ipynb` (split temporal + inyección de ataques).
-- **Procesado versionado (atajo, en `UCIrvine/data/`):**
-  - `train_clean.csv.gz` — train limpio (1,30 M filas)
-  - `val_with_attacks.csv.gz` — validación con ataques (144 k filas)
-  - `test_with_attacks.csv.gz` — test con ataques (605 k filas)
+- **Official source:** https://archive.ics.uci.edu/dataset/235/individual+household+electric+power+consumption
+- **Raw (not versioned):** `household_power_consumption.txt`. Download it from the link and place it in `UCIrvine/`.
+- **Regenerate from the raw file:** run `01_HouseholdAnalisis.ipynb` (cleaning → `uci_clean_full.csv`) and then `02_FDI_Injection.ipynb` (temporal split + attack injection).
+- **Versioned processed shortcut (in `UCIrvine/data/`):**
+  - `train_clean.csv.gz` — clean training set (1.30 M rows)
+  - `val_with_attacks.csv.gz` — validation set with attacks (144 k rows)
+  - `test_with_attacks.csv.gz` — test set with attacks (605 k rows)
 
-  Para usarlos directamente: `pd.read_csv('UCIrvine/data/train_clean.csv.gz')` (pandas descomprime solo).
+  To use them directly: `pd.read_csv('UCIrvine/data/train_clean.csv.gz')` (pandas decompresses automatically).
 
-## 2. UK-DALE (validación cross-domain, NB13)
+## 2. UK-DALE (cross-domain validation, NB13)
 
-5 hogares del Reino Unido (Kelly & Knottenbelt, 2015). Se usa solo el **agregado (`mains`, channel_1)** de cada casa para evaluar si el detector entrenado en UCI **generaliza** a otros hogares. El crudo (~112 GB) incluye datos a 16 kHz y canales de electrodomésticos que **no** se necesitan para detección sobre consumo agregado.
+5 households in the United Kingdom (Kelly & Knottenbelt, 2015). Only the **aggregate signal (`mains`, channel_1)** of each house is used, to evaluate whether the detector trained on UCI **generalizes** to other households. The raw data (~112 GB) includes 16 kHz signals and per-appliance channels that are **not** needed for detection on aggregate consumption.
 
-- **Fuente oficial:** https://jack-kelly.com/data/  (UK-DALE, UKERC EDC)
-- **Crudo (no versionado):** carpeta `UKRC/ukdale/house_{1..5}/channel_1.dat`.
-- **Procesado versionado (en `UCIrvine/data/`):** `ukdale_multihouse_1min.csv.gz` — `mains` de las 5 casas resampleado a 1 minuto en kW (~16 MB, 3 M filas). Columnas: `datetime`, `Global_active_power` (kW), `house`.
-- **Regenerar:** `python datasets/prepare_ukdale.py` (lee el crudo y reescribe el `.csv.gz`).
-- **Limitación conocida:** UK-DALE no mide Voltage ni Intensidad → la feature física `VI_residual` es 0 en este dataset (ver discusión en NB13).
+- **Official source:** https://jack-kelly.com/data/  (UK-DALE, UKERC EDC)
+- **Raw (not versioned):** folder `UKRC/ukdale/house_{1..5}/channel_1.dat`.
+- **Versioned processed (in `UCIrvine/data/`):** `ukdale_multihouse_1min.csv.gz` — the `mains` signal of the 5 houses resampled to 1 minute in kW (~16 MB, 3 M rows). Columns: `datetime`, `Global_active_power` (kW), `house`.
+- **Regenerate:** `python datasets/prepare_ukdale.py` (reads the raw data and rewrites the `.csv.gz`).
+- **Known limitation:** UK-DALE does not measure Voltage or Intensity → the physical feature `VI_residual` is 0 on this dataset (see discussion in NB13).
 
-## 3. REFIT / UKREFIT (descartado)
+## 3. REFIT / UKREFIT (discarded)
 
-20 viviendas del Reino Unido. **No se usa en el análisis final** (sin la estructura de señales que requiere el check físico `P=V·I`). Se documenta solo por trazabilidad.
+20 dwellings in the United Kingdom. **Not used in the final analysis** (it lacks the signal structure required by the physical check `P=V·I`). Documented here only for traceability.
 
-- **Fuente oficial:** https://www.refitsmarthomes.org/datasets/  (University of Strathclyde)
-- No versionado (en `.gitignore`).
+- **Official source:** https://www.refitsmarthomes.org/datasets/  (University of Strathclyde)
+- Not versioned (in `.gitignore`).
