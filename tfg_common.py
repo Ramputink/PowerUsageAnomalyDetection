@@ -1,19 +1,20 @@
 """
-tfg_common.py — Utilidades compartidas por los notebooks NB15-NB20.
+tfg_common.py — Shared utilities for notebooks NB15-NB20.
 
-Centraliza el CONTRATO de datos y el PROTOCOLO de evaluación definidos en
-NB02-NB10 para que los notebooks nuevos (modelos generativos, federated,
-robustez adversaria, compresión edge) sean estrictamente comparables con los
-detectores previos:
+Centralizes the data CONTRACT and the evaluation PROTOCOL defined in NB02-NB10
+so that the new notebooks (generative models, federated learning, adversarial
+robustness, edge compression) are strictly comparable with the earlier
+detectors:
 
-  * Mismo split temporal (train_clean / val_with_attacks / test_with_attacks).
-  * Mismas features (modos base/medium/full, idénticas a NB02/NB04).
-  * Calibración de umbral y de (W, K) SOLO en validación.
-  * Mismas métricas: F1/F2/AUC-ROC/AUC-PR + recall por tipo x severidad
-    + latencia de detección por episodio.
+  * Same temporal split (train_clean / val_with_attacks / test_with_attacks).
+  * Same features (base/medium/full modes, identical to NB02/NB04).
+  * Threshold and (W, K) calibration ONLY on the validation set.
+  * Same metrics: F1/F2/AUC-ROC/AUC-PR + recall by type x severity
+    + per-episode detection latency.
 
-Reutiliza las funciones inline de NB04 (compute_features, calibrate_threshold,
-temporal_vote_vectorized, compute_detection_latency) para no reimplementarlas.
+Reuses NB04's inline functions (compute_features, calibrate_threshold,
+temporal_vote_vectorized, compute_detection_latency) to avoid reimplementing
+them.
 """
 import os
 import json
@@ -29,11 +30,11 @@ from sklearn.metrics import (
 BASE_DIR = '/Volumes/Extreme Pro Particion 1TB/TFG/UCIrvine/'
 DATA_DIR = os.path.join(BASE_DIR, 'data')
 FIG_DIR = os.path.join(BASE_DIR, 'figures')
-WARMUP = 30  # filas de calentamiento para que las features rolling arranquen bien
+WARMUP = 30  # warm-up rows so the rolling features start up correctly
 
 
 # --------------------------------------------------------------------------- #
-#  Configuración / datos
+#  Configuration / data
 # --------------------------------------------------------------------------- #
 def load_config():
     with open(os.path.join(DATA_DIR, 'pipeline_config.json')) as f:
@@ -41,7 +42,7 @@ def load_config():
 
 
 def load_raw():
-    """Carga los tres splits oficiales (inmutables)."""
+    """Loads the three official (immutable) splits."""
     df_train = pd.read_csv(os.path.join(DATA_DIR, 'train_clean.csv'),
                            index_col='datetime', parse_dates=True)
     df_val = pd.read_csv(os.path.join(DATA_DIR, 'val_with_attacks.csv'),
@@ -52,7 +53,7 @@ def load_raw():
 
 
 def compute_features(df, feature_cols, mode='full'):
-    """Idéntica a NB02/NB04.  base=8, medium=13, full=17 features."""
+    """Identical to NB02/NB04.  base=8, medium=13, full=17 features."""
     f = df[feature_cols].copy()
     f['VI_residual'] = (df['Global_active_power']
                         - df['Voltage'] * df['Global_intensity'] / 1000.0)
@@ -77,9 +78,9 @@ def compute_features(df, feature_cols, mode='full'):
 
 def build_matrices(mode='full', scaler=None):
     """
-    Devuelve un dict con X_train/X_val/X_test escalados + etiquetas + metadatos.
-    Usa warm-up con la cola del split anterior (sin fuga de información) y
-    RobustScaler ajustado SOLO en train, exactamente como NB04.
+    Returns a dict with scaled X_train/X_val/X_test + labels + metadata.
+    Uses warm-up from the tail of the previous split (no information leakage)
+    and a RobustScaler fitted ONLY on train, exactly like NB04.
     """
     cfg = load_config()
     feature_cols = cfg['feature_cols']
@@ -112,10 +113,10 @@ def build_matrices(mode='full', scaler=None):
 
 
 # --------------------------------------------------------------------------- #
-#  Modelos base reutilizables
+#  Reusable base models
 # --------------------------------------------------------------------------- #
 def build_dense_ae(n_features, bottleneck=4, lr=5e-4):
-    """Dense-AE idéntico a NB04 (para comparabilidad de footprint edge)."""
+    """Dense-AE identical to NB04 (for edge-footprint comparability)."""
     from tensorflow import keras
     from tensorflow.keras.layers import Input, Dense, LeakyReLU
     from tensorflow.keras.models import Model
@@ -132,10 +133,10 @@ def build_dense_ae(n_features, bottleneck=4, lr=5e-4):
 
 
 # --------------------------------------------------------------------------- #
-#  Protocolo de evaluación (idéntico a NB04)
+#  Evaluation protocol (identical to NB04)
 # --------------------------------------------------------------------------- #
 def calibrate_threshold(y_true, scores, beta=1.0):
-    """Umbral que maximiza F_beta sobre la curva precision-recall (en val)."""
+    """Threshold that maximizes F_beta over the precision-recall curve (on val)."""
     p, r, thr = precision_recall_curve(y_true, scores)
     p, r = p[:-1], r[:-1]
     fbeta = (1 + beta ** 2) * p * r / (beta ** 2 * p + r + 1e-10)
@@ -144,7 +145,7 @@ def calibrate_threshold(y_true, scores, beta=1.0):
 
 
 def temporal_vote(y_pred, W, K):
-    """Filtro de votación causal O(n) con cumsum (idéntico a NB04)."""
+    """Causal O(n) voting filter with cumsum (identical to NB04)."""
     cum = np.concatenate([[0], np.cumsum(y_pred)])
     ends = np.arange(1, len(y_pred) + 1)
     starts = np.maximum(0, ends - W)
@@ -153,7 +154,7 @@ def temporal_vote(y_pred, W, K):
 
 def calibrate_WK(y_val, y_pred_val_raw,
                  W_candidates=(3, 5, 7, 9, 11, 15, 21, 30)):
-    """Busca (W, K) que maximiza F1 en validación."""
+    """Searches for the (W, K) that maximizes F1 on validation."""
     best = (0.0, 3, 2)
     for W in W_candidates:
         for K in range(2, W + 1):
@@ -164,7 +165,7 @@ def calibrate_WK(y_val, y_pred_val_raw,
 
 
 def evaluate(y_true, scores, threshold, W=None, K=None):
-    """Devuelve dict de métricas raw y (si W,K) smoothed."""
+    """Returns a dict of raw metrics and (if W,K given) smoothed ones."""
     y_raw = (scores > threshold).astype(int)
     out = {
         'raw_f1': float(f1_score(y_true, y_raw)),
@@ -187,7 +188,7 @@ def evaluate(y_true, scores, threshold, W=None, K=None):
 
 
 def recall_by_type_severity(df_test, y_pred_smooth, attack_types):
-    """Recall por tipo x severidad (smoothed)."""
+    """Recall by type x severity (smoothed)."""
     d = df_test.copy()
     d['pred'] = y_pred_smooth
     rows = []
@@ -201,7 +202,7 @@ def recall_by_type_severity(df_test, y_pred_smooth, attack_types):
 
 
 def detection_latency(df_test, pred_col):
-    """Latencia de detección por episodio (idéntica a NB04)."""
+    """Per-episode detection latency (identical to NB04)."""
     d = df_test[df_test['episode_id'] >= 0]
     res = []
     for ep, g in d.groupby('episode_id'):
@@ -218,7 +219,7 @@ def detection_latency(df_test, pred_col):
 
 
 def edge_timing(predict_fn, X, n_repeat=5):
-    """ms/muestra y throughput de una función de inferencia."""
+    """ms/sample and throughput of an inference function."""
     _ = predict_fn(X[:100])
     times = []
     for _ in range(n_repeat):
