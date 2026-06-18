@@ -1,20 +1,20 @@
 {
-  "model": "DDPM 1D (s\u00edntesis + detecci\u00f3n por denoising)",
+  "model": "DDPM 1D (synthesis + denoising detection)",
   "window": 48,
   "timesteps": 50,
   "n_params": 135920,
-  "bhattacharyya_realism": 0.8129,
+  "bhattacharyya_realism": 0.8073,
   "acf_lag1_real": 0.8527,
-  "acf_lag1_gen": 0.7313,
+  "acf_lag1_gen": 0.7338,
   "detector_ddpm": {
-    "auc_roc": 0.5231,
-    "auc_pr": 0.2699
+    "auc_roc": 0.5248,
+    "auc_pr": 0.2716
   },
   "detector_ae_window": {
-    "auc_roc": 0.5458,
-    "auc_pr": 0.2645
+    "auc_roc": 0.5471,
+    "auc_pr": 0.2662
   },
   "diffusion_fdi_bank_size": 1000,
-  "diffusion_fdi_recall": 0.059,
-  "notes": "Banco diffusion-FDI complementario; no sustituye a NB02."
+  "diffusion_fdi_recall": 0.043,
+  "notes": "Complementary diffusion-FDI bank; does not replace NB02."
 }
